@@ -88,7 +88,7 @@ const CustomCalendar: React.FC = () => {
       setEvents(todaysEvents);
     } catch (error) {
       console.error("Error loading events:", error);
-      alert("Failed to load events. Please refresh the page.");
+      // alert("Failed to load events. Please refresh the page.");
     }
   }
   
@@ -211,7 +211,7 @@ const CustomCalendar: React.FC = () => {
   const saveEvent = async (): Promise<void> => {
     if (!modalEvent || !modalEvent.title || !modalEvent.start || !modalEvent.end) return;
     if (modalEvent.start >= modalEvent.end) {
-      alert("Start time must be before end time.");
+      // alert("Start time must be before end time.");
       return;
     }
 
@@ -236,7 +236,7 @@ const CustomCalendar: React.FC = () => {
       setTempEvent(null);
     } catch (error) {
       console.error("Error saving event:", error);
-      alert("Failed to save event. Please try again.");
+      // alert("Failed to save event. Please try again.");
     } finally {
       setIsSaving(false);
     }

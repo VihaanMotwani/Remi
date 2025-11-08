@@ -130,6 +130,7 @@ Each element must be:
     "task": "short actionable item",
     "owner": "string or empty",
     "due_date": "ISO 8601 date or empty"
+    "attendees": ["string", "array of names attending the event"] or [],
   }}
 ]
 If no actionable tasks exist, return [].
