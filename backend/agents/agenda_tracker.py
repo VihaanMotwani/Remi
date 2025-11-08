@@ -35,7 +35,7 @@ class AgendaItem:
     id: str
     title: str
     description: str = ""
-    status: str = "not-started"  # not-started, in-progress, covered, skipped
+    status: str = "not-started"  # not-started or covered (simplified)
     sub_items: List['AgendaItem'] = None
     covered_at: Optional[str] = None
     keywords: List[str] = None
@@ -156,12 +156,7 @@ class AgendaTracker:
         # Build agenda context
         agenda_context = []
         for item in self.agenda_items:
-            status_emoji = {
-                'not-started': '⚪',
-                'in-progress': '🔵',
-                'covered': '✅',
-                'skipped': '⏭️'
-            }.get(item.status, '⚪')
+            status_emoji = '✅' if item.status == 'covered' else '⚪'
             
             agenda_context.append(
                 f"{status_emoji} {item.title} (Status: {item.status})\n"
@@ -174,83 +169,60 @@ class AgendaTracker:
         # LLM Analysis Prompt
         prompt = f"""You are an AI meeting assistant tracking agenda items in real-time.
 
-CURRENT AGENDA STATUS (PRESERVE THESE STATES):
+CURRENT AGENDA STATUS:
 {agenda_text}
 
-NOTE: If an item shows "Status: in-progress" or "Status: covered", you MUST keep it that way in your response. 
-Never downgrade from covered/in-progress back to missed.
+IMPORTANT: Once an item is marked "covered", it stays covered forever. Never revert it back.
 
 RECENT CONVERSATION:
 {conversation_text}
 
-Analyze the conversation and determine:
-1. Which agenda item(s) are currently being discussed (if any)
-2. Which items have been fully covered
-3. Which items are being missed or skipped
-4. Whether the conversation is on-track or off-topic
+Analyze the conversation and determine which agenda items have been discussed.
 
-CRITICAL COVERAGE RULES - ULTRA-AGGRESSIVE FUZZY MATCHING:
+SIMPLIFIED RULES:
+- Mark an item as "covered" if ANY of its keywords appear in conversation with some discussion
+- Be liberal with marking things covered - if someone mentions it, they're addressing it
+- Once covered, it stays covered (preserve existing "covered" status)
+- Items not yet discussed remain as "not-started"
 
-KEYWORD MATCHING (be very loose):
-- "budget", "cost", "money", "funding" → Budget Allocation
-- "Q3", "performance", "metrics", "results" → Review Q3 Performance  
-- "feature", "roadmap", "features" → Feature Roadmap
-- "timeline", "milestone", "schedule", "deadline", "plan" → Timeline & Milestones
-- "team", "assign", "role" → Team Assignments
+KEYWORD EXAMPLES:
+- "budget", "cost", "money" → Budget Allocation
+- "Q3", "performance", "metrics" → Review Q3 Performance  
+- "feature", "roadmap" → Feature Roadmap
+- "timeline", "deadline", "schedule" → Timeline & Milestones
+- "team", "assign" → Team Assignments
 
-COVERAGE DETECTION (mark in_progress or covered immediately):
-- If you see ANY keyword in the last 3 messages → mark as "in_progress"
-- If you see keyword + ANY details (numbers, decisions, discussion) → mark as "covered"
-- Words like "should", "need to", "let's", "think about" + keyword → mark as "in_progress"
-- Once marked "in_progress" or "covered" → NEVER EVER revert to "missed"
-
-EXAMPLE: User says "we should think about the timeline" → MUST mark item_4 as "in_progress"
-EXAMPLE: User says "feature" or "features" → MUST mark item_3 as "in_progress"
-EXAMPLE: User says "$10" while discussing budget → mark item_2 as "covered"
-
-BE AGGRESSIVE: When in doubt, always mark as in_progress/covered rather than missed!
-
-PROMPT TONE & STYLE:
-- Be warm, friendly, and supportive like a helpful colleague
-- Use encouraging language and positive framing
-- Make suggestions feel natural and conversational, not robotic
-- Add gentle emojis where appropriate (sparingly)
-- Keep messages concise but personable (10-15 words ideal)
-- Examples:
-  * "Discuss the budget when you're ready! 💭"
-  * "Ooh what about team assignments 😊"
-  * "Shall we circle back to the timeline? No rush! ⏰"
-
-MATCHING RULES - Be precise, not overeager:
-- Only mark an item "in_progress" if it's ACTIVELY discussed in the last 1-2 messages
-- Only mark "covered" if there's substantial discussion (2+ exchanges with details/decisions)
-- If unsure, leave as "missed" - don't guess
-- Preserve existing status: items already "in_progress" or "covered" stay that way
+PROMPT STYLE:
+- Warm, friendly, conversational
+- Keep messages short (10-15 words)
+- Use gentle emojis sparingly
+- Examples: "Shall we discuss the budget? 💭" or "What about team assignments? 😊"
 
 Respond ONLY with valid JSON in this exact format:
 {{
   "current_topic": "agenda item title or 'off-topic'",
-  "items_in_progress": ["item_1"],
-  "items_covered": ["item_2"],
-  "items_missed": ["item_3"],
+  "items_covered": ["item_1", "item_2"],
+  "items_missed": ["item_3", "item_4"],
   "prompts": [
     {{
       "type": "missing",
-      "message": "Warm, friendly suggestion about the topic",
-      "related_item_id": "Budget Allocation",
+      "message": "Warm, friendly suggestion",
+      "related_item_id": "Item Title",
       "priority": "medium"
     }}
   ]
 }}
 
 CRITICAL RULES: 
-- items_in_progress, items_covered, items_missed use item IDs (like "item_1", "item_2")
-- related_item_id in prompts uses item TITLES (like "Budget Allocation")
-- Generate 0-2 prompts ONLY. Do NOT always generate prompts.
-- NEVER generate prompts for items in items_covered or items_in_progress
+- items_covered/items_missed use item IDs (e.g., "item_1")
+- related_item_id in prompts uses item TITLES (e.g., "Budget Allocation")
+- Generate 0-2 prompts max
+- **NEVER EVER generate prompts for items marked as "covered"**
+- **ONLY generate prompts for items in items_missed**
 - NEVER generate multiple prompts for the same item
-- Only generate prompts for items in items_missed that are truly being ignored
+- Only generate prompts for items that are truly being ignored
 - If only 1-2 items are missed, only generate 1-2 prompts (not 3)
+- Empty prompts array is perfectly fine if nothing is missed
 """
         
         try:
@@ -280,44 +252,46 @@ CRITICAL RULES:
     
     def _update_agenda_status(self, analysis: Dict):
         """Update agenda item statuses based on analysis"""
-        covered_items = set()
+        # First, mark any newly covered items
+        # LLM might return IDs or titles, so check both
+        items_covered = analysis.get('items_covered', [])
         
         for item in self.agenda_items:
-            if item.id in analysis.get('items_covered', []):
+            # Check if item ID or title is in items_covered
+            if item.id in items_covered or item.title in items_covered:
                 if item.status != 'covered':
                     item.status = 'covered'
                     item.covered_at = datetime.now().isoformat()
                     print(f"✅ Covered: {item.title}")
-                covered_items.add(item.id)
-            
-            elif item.id in analysis.get('items_in_progress', []):
-                if item.status == 'not-started':
-                    item.status = 'in-progress'
-                    print(f"🔵 Started: {item.title}")
         
-        # Auto-dismiss prompts for covered or in-progress items
-        # Note: related_item_id is the TITLE, not the ID
-        if covered_items or analysis.get('items_in_progress'):
-            # Build set of titles for addressed items
-            addressed_titles = set()
-            for item in self.agenda_items:
-                if item.id in covered_items or item.id in analysis.get('items_in_progress', []):
-                    addressed_titles.add(item.title)
-            
+        # Auto-dismiss prompts for ALL covered items (not just newly covered)
+        covered_titles = {item.title for item in self.agenda_items if item.status == 'covered'}
+        
+        if covered_titles:
             before_count = len(self.active_prompts)
             self.active_prompts = [
                 p for p in self.active_prompts 
-                if p.related_item_id not in addressed_titles
+                if p.related_item_id not in covered_titles
             ]
             dismissed = before_count - len(self.active_prompts)
             if dismissed > 0:
-                print(f"🗑️ Auto-dismissed {dismissed} prompts for: {addressed_titles}")
+                print(f"🗑️ Auto-dismissed {dismissed} prompts for: {covered_titles}")
     
     def _generate_prompts(self, analysis: Dict):
         """Generate UI prompts based on analysis"""
         new_prompts = []
         
+        # Get set of covered item titles to avoid creating prompts for them
+        covered_titles = {item.title for item in self.agenda_items if item.status == 'covered'}
+        if covered_titles:
+            print(f"🚫 Filtering out prompts for covered items: {covered_titles}")
+        
         for prompt_data in analysis.get('prompts', []):
+            # Skip prompts for items that are already covered
+            if prompt_data['related_item_id'] in covered_titles:
+                print(f"⏭️ Skipping prompt for covered item: {prompt_data['related_item_id']}")
+                continue
+            
             # Avoid duplicate prompts - check both exact message AND same item
             existing = any(
                 (p.message == prompt_data['message']) or 
@@ -421,6 +395,28 @@ class AgendaWebSocketServer:
                 
                 elif data['type'] == 'dismiss_prompt':
                     self.tracker.dismiss_prompt(data['promptId'])
+                    await self.broadcast_state()
+                
+                elif data['type'] == 'mark_item_done':
+                    # Mark an agenda item as covered by title
+                    item_title = data.get('itemTitle')
+                    if item_title:
+                        for item in self.tracker.agenda_items:
+                            if item.title == item_title:
+                                item.status = 'covered'
+                                item.covered_at = datetime.now().isoformat()
+                                print(f"✅ Manually marked as done: {item.title}")
+                                
+                                # Auto-dismiss prompts related to this item
+                                before_count = len(self.tracker.active_prompts)
+                                self.tracker.active_prompts = [
+                                    p for p in self.tracker.active_prompts 
+                                    if p.related_item_id != item.title
+                                ]
+                                dismissed = before_count - len(self.tracker.active_prompts)
+                                if dismissed > 0:
+                                    print(f"🗑️ Auto-dismissed {dismissed} prompt(s) for: {item.title}")
+                                break
                     await self.broadcast_state()
                 
                 elif data['type'] == 'get_state':
