@@ -14,15 +14,9 @@
 
 .container {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  width: 100%;
-  gap: 1.5rem; 
-  color: var(--text-primary);
-  /* Added "Inter" for modern typography */
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; 
-  transition: background-color 0.3s ease;
+  flex-direction: column;
+  align-items: center; /* center the row horizontally */
+  gap: 8px; /* spacing between row and counter */
 }
 
 .mailCard {
@@ -186,3 +180,23 @@
   text-align: center;
   margin-top: 40vh;
 }
+
+.row {
+  display: flex;
+  align-items: center; /* vertically center arrows and card */
+  width: 100%; /* full width or max width */
+  max-width: 800px; /* optional, max container width */
+  justify-content: center; /* center the mail card and arrows */
+  gap: 12px; /* space between arrows and card */
+}
+.emailCounter {
+  align-self: center; /* align left inside container */
+  padding-top: 10px;
+  font-size: 0.9rem;
+  color: #888;
+  user-select: none;
+  padding-left: 12px; /* some left padding if you want */
+  min-height: 20px;   /* reserve vertical space */
+}
+
+

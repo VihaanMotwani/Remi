@@ -219,3 +219,35 @@ Here’s the full context for today:
             "meetings_today": [],
             "summary_text": "Unable to generate detailed report.",
         }
+def suggest_email_reply(email_text: str, style="friendly"):
+    """
+    Generate a suggested reply to an email.
+    Returns a JSON with { "reply": "...", "tone": "formal/friendly", "confidence": float }
+    """
+    prompt = f"""
+You are an AI workplace assistant that drafts thoughtful and professional email replies.
+
+Read the email below and suggest a concise and context-aware reply in the tone: {style}.
+Output valid JSON only, with the following format:
+
+{{
+  "reply": "string - the suggested reply body",
+  "tone": "{style}",
+  "confidence": 0.0-1.0
+}}
+
+Email:
+\"\"\"{email_text}\"\"\"
+"""
+
+    try:
+        result = model.generate_content(prompt, generation_config={"temperature": 0.4})
+        output = result.text.strip().replace("```json", "").replace("```", "")
+        return json.loads(output)
+    except Exception as e:
+        print(f"⚠️ Error generating suggested reply: {e}")
+        return {
+            "reply": "(No suggestion available)",
+            "tone": style,
+            "confidence": 0.0
+        }

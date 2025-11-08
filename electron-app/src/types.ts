@@ -57,3 +57,18 @@ export type Meeting = {
   meetingNotes: string;
   actionItems: string;
 };
+
+export interface Email {
+  id: string;
+  from_email: string;
+  to_email: string[];
+  cc?: string[];
+  subject: string;
+  body?: string;
+  summary?: string;
+  timestamp?: string;
+  action_items?: Record<string, any>[];
+  repliedTo: boolean;
+  response?: string;
+  thread_id: string;
+}
