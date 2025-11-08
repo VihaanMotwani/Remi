@@ -16,6 +16,5 @@
       "include": [
       "src",
       "global.d.ts"
-, "../backend/emailApi", "../backend/sync/emailsClient.mjs", "../backend/sync/server.mjs"    ]
-
+, "../backend/sync/emailsClient.mjs"]
 }
