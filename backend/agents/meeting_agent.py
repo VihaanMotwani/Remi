@@ -83,6 +83,7 @@ def process_calendar_meetings():
                 if m.get("end_time")
                 else None
             ),
+            "is_task": m.get("is_task", False),
         }
 
         try:
