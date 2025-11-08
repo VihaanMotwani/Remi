@@ -1,0 +1,5 @@
+# Meeting Assistant Requirements
+numpy>=1.24.0
+openai>=1.0.0
+websockets>=12.0
+python-dotenv>=1.0.0

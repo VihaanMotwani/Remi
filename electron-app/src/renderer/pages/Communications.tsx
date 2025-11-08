@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import styles from "./Communications.module.css";
-import {
-  fetchUnrespondedEmails,
-  // saveEmailDraft,
-  logSentEmail,
-  sendEmailViaGmail,
-  saveDraftViaGmail,
-  Email,
-} from "../../api/emailsClient";
+import { Email } from "../../types";
+import { fetchUnrespondedEmails, updateEmailResponse } from "../../api/messagesClient";
+
+
+
 
 export default function Communications() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [responseDraft, setResponseDraft] = useState<string>("");
-  const [accessToken, setAccessToken] = useState<string>(""); // Still needs implementation
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -53,26 +49,40 @@ export default function Communications() {
     updateCurrentEmail(newIndex);
   };
 
-  const handleSaveDraft = async () => {
-    if (!current || !responseDraft) return;
-    //TODO: Save to DB
-  };
+  // const handleSaveDraft = async () => {
+  //   if (!current || !responseDraft) return;
+  //   //TODO: Save to DB
+  // };
 
-  const handleSend = async () => {
-    if (!current || !responseDraft) return;
-    try {
-      if (accessToken) {
-        await sendEmailViaGmail(accessToken, current.to_email, current.subject, responseDraft);
-      }
-      await logSentEmail(current.id, responseDraft);
-      // alert("Email sent successfully!");
-      // Automatically advance to the next email after sending
-      handleNext(); 
-    } catch (error) {
-      console.error(error);
-      // alert("Error sending email.");
+
+const handleSend = async () => {
+  try {
+    const response = await fetch('http://localhost:4000/send-reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        threadId: emails[index].thread_id,
+        to: emails[index].to_email,
+        from: emails[index].from_email,
+        body: responseDraft,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      console.log('Reply sent successfully!');
+      await updateEmailResponse(emails[index].thread_id, responseDraft);
+      // Remove the sent email from the list
+      const updatedEmails = emails.filter((_, i) => i !== index);
+      setEmails(updatedEmails);
+    } else {
+      console.error('Send failed:', result.error);
     }
-  };
+  } catch (error) {
+    console.error('Network or server error:', error);
+  }
+};
 
   if (loading) return <div className={styles.empty}>Loading emails...</div>;
   if (emails.length === 0)
@@ -80,67 +90,72 @@ export default function Communications() {
 
   return (
     <div className={styles.container}>
-      <button onClick={handlePrev} className={styles.arrowButton}>←</button>
+      <div className={styles.row}>
+        <button onClick={handlePrev} className={styles.arrowButton}>←</button>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={current.id}
-          className={styles.mailCard}
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.35, ease: "easeInOut" }}
-        >
-          {/* Header */}
-          <div className={styles.header}>
-            <div><strong>From:</strong> {current.from_email || "—"}</div>
-            <div><strong>To:</strong> {current.to_email?.join(", ") || "—"}</div>
-            <div><strong>Subject:</strong> {current.subject || "—"}</div>
-            {current.timestamp && (
-              <div><strong>Received:</strong> {new Date(current.timestamp).toLocaleString()}</div>
-            )}
-          </div>
-
-          {/* Summary Section */}
-          {current.summary && (
-            <motion.div
-              className={styles.summaryBox}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <strong>Summary:</strong>
-              <p>{current.summary}</p>
-            </motion.div>
-          )}
-
-          {/* Full Body */}
+        <AnimatePresence mode="wait">
           <motion.div
-            className={styles.body}
-            initial={{ opacity: 0.85 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4 }}
+            key={current.id}
+            className={styles.mailCard}
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
           >
-            {current.body || "No message body available."}
-          </motion.div>
-
-          {/* Response Section: Note h4 instead of h3 */}
-          <div className={styles.responseSection}>
-            <h4 className={styles.responseHeading}>Suggested Response</h4>
-            <textarea
-              className={styles.responseBox}
-              placeholder="Type or edit your response..."
-              value={responseDraft}
-              onChange={(e) => setResponseDraft(e.target.value)}
-            />
-            <div className={styles.responseActions}>
-              <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>Send</button>
+            {/* Header */}
+            <div className={styles.header}>
+              <div><strong>From:</strong> {current.from_email || "—"}</div>
+              <div><strong>To:</strong> {current.to_email?.join(", ") || "—"}</div>
+              <div><strong>Subject:</strong> {current.subject || "—"}</div>
+              {current.timestamp && (
+                <div><strong>Received:</strong> {new Date(current.timestamp).toLocaleString()}</div>
+              )}
             </div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
 
-      <button onClick={handleNext} className={styles.arrowButton}>→</button>
+            {/* Summary Section */}
+            {current.summary && (
+              <motion.div
+                className={styles.summaryBox}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <strong>Summary:</strong>
+                <p>{current.summary}</p>
+              </motion.div>
+            )}
+
+            {/* Full Body */}
+            <motion.div
+              className={styles.body}
+              initial={{ opacity: 0.85 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4 }}
+            >
+              {current.body || "No message body available."}
+            </motion.div>
+
+            {/* Response Section: Note h4 instead of h3 */}
+            <div className={styles.responseSection}>
+              <h4 className={styles.responseHeading}>Suggested Response</h4>
+              <textarea
+                className={styles.responseBox}
+                placeholder="Type or edit your response..."
+                value={responseDraft}
+                onChange={(e) => setResponseDraft(e.target.value)}
+              />
+              <div className={styles.responseActions}>
+                <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>Send</button>
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+
+        <button onClick={handleNext} className={styles.arrowButton}>→</button>
+      </div>
+      <div className={styles.emailCounter}>
+        {index + 1} / {emails.length}
+      </div>
     </div>
   );
 }

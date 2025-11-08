@@ -1,0 +1,515 @@
+#!/usr/bin/env python3
+"""
+Live Agenda Tracker for Meeting Assistant
+Analyzes real-time transcription against predefined agendas
+Generates intelligent prompts when items are missed or could be expanded
+"""
+
+import os
+import sys
+import json
+import asyncio
+import websockets
+from datetime import datetime
+from typing import Dict, List, Optional
+from dataclasses import dataclass, asdict
+from openai import OpenAI
+from pathlib import Path
+
+# Load .env file if it exists
+env_file = Path(__file__).parent.parent.parent / "meeting-assistant" / ".env"
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key.strip()] = value.strip()
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+
+@dataclass
+class AgendaItem:
+    id: str
+    title: str
+    description: str = ""
+    status: str = "not-started"  # not-started or covered (simplified)
+    sub_items: List['AgendaItem'] = None
+    covered_at: Optional[str] = None
+    keywords: List[str] = None
+    estimated_minutes: int = 5
+
+    def __post_init__(self):
+        if self.sub_items is None:
+            self.sub_items = []
+        if self.keywords is None:
+            self.keywords = []
+
+
+@dataclass
+class AgendaPrompt:
+    id: str
+    type: str  # missing, expand, off-track
+    message: str
+    related_item_id: str
+    priority: str  # low, medium, high
+    created_at: str
+
+
+@dataclass
+class TranscriptionChunk:
+    timestamp: str
+    speaker: str  # "You" or "Other"
+    text: str
+
+
+class AgendaTracker:
+    def __init__(self, agenda_file: str = None):
+        self.agenda_items: List[AgendaItem] = []
+        self.conversation_history: List[TranscriptionChunk] = []
+        self.active_prompts: List[AgendaPrompt] = []
+        self.meeting_title = ""
+        self.meeting_start = datetime.now().isoformat()
+        self.prompt_counter = 0  # For generating unique IDs
+        
+        if agenda_file and os.path.exists(agenda_file):
+            self.load_agenda(agenda_file)
+        
+        print(f"🎯 Agenda Tracker initialized with {len(self.agenda_items)} items")
+    
+    def load_agenda(self, file_path: str):
+        """Load predefined agenda from JSON file"""
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                self.meeting_title = data.get('meetingTitle', 'Untitled Meeting')
+                
+                for item_data in data.get('items', []):
+                    item = AgendaItem(
+                        id=item_data['id'],
+                        title=item_data['title'],
+                        description=item_data.get('description', ''),
+                        keywords=item_data.get('keywords', []),
+                        estimated_minutes=item_data.get('estimatedMinutes', 5)
+                    )
+                    self.agenda_items.append(item)
+                
+                print(f"✅ Loaded agenda: {self.meeting_title}")
+                for item in self.agenda_items:
+                    print(f"   📋 {item.title}")
+        except Exception as e:
+            print(f"❌ Error loading agenda: {e}")
+    
+    def add_transcription(self, speaker: str, text: str):
+        """Add new transcription chunk and analyze"""
+        chunk = TranscriptionChunk(
+            timestamp=datetime.now().isoformat(),
+            speaker=speaker,
+            text=text
+        )
+        self.conversation_history.append(chunk)
+        
+        # Keep only last 50 chunks for context (memory management)
+        if len(self.conversation_history) > 50:
+            self.conversation_history = self.conversation_history[-50:]
+        
+        # Analyze against agenda
+        self._analyze_conversation()
+    
+    def _simple_keyword_check(self, text: str) -> set:
+        """Simple keyword matching to pre-detect mentioned items"""
+        text_lower = text.lower()
+        mentioned = set()
+        
+        # Check each item's keywords
+        for item in self.agenda_items:
+            for keyword in item.keywords:
+                if keyword.lower() in text_lower:
+                    mentioned.add(item.id)
+                    break
+        
+        return mentioned
+    
+    def _analyze_conversation(self):
+        """Analyze recent conversation against agenda using LLM"""
+        if not self.agenda_items:
+            return
+        
+        # Analyze after every new chunk for maximum responsiveness
+        print(f"🔍 Analyzing conversation... (Total chunks: {len(self.conversation_history)})")
+        
+        # Get last 10 chunks for context
+        recent_chunks = self.conversation_history[-10:]
+        conversation_text = "\n".join([
+            f"{chunk.speaker}: {chunk.text}" 
+            for chunk in recent_chunks
+        ])
+        
+        # Pre-check: Simple keyword matching on last 3 chunks
+        recent_text = " ".join([chunk.text for chunk in recent_chunks[-3:]])
+        keyword_matches = self._simple_keyword_check(recent_text)
+        if keyword_matches:
+            print(f"🎯 Keyword matches found: {keyword_matches}")
+        
+        # Build agenda context
+        agenda_context = []
+        for item in self.agenda_items:
+            status_emoji = '✅' if item.status == 'covered' else '⚪'
+            
+            agenda_context.append(
+                f"{status_emoji} {item.title} (Status: {item.status})\n"
+                f"   Description: {item.description}\n"
+                f"   Keywords: {', '.join(item.keywords)}"
+            )
+        
+        agenda_text = "\n".join(agenda_context)
+        
+        # LLM Analysis Prompt
+        prompt = f"""You are an AI meeting assistant tracking agenda items in real-time.
+
+CURRENT AGENDA STATUS:
+{agenda_text}
+
+IMPORTANT: Once an item is marked "covered", it stays covered forever. Never revert it back.
+
+RECENT CONVERSATION:
+{conversation_text}
+
+Analyze the conversation and determine which agenda items have been discussed.
+
+SIMPLIFIED RULES:
+- Mark an item as "covered" if ANY of its keywords appear in conversation with some discussion
+- Be liberal with marking things covered - if someone mentions it, they're addressing it
+- Once covered, it stays covered (preserve existing "covered" status)
+- Items not yet discussed remain as "not-started"
+
+KEYWORD EXAMPLES:
+- "budget", "cost", "money" → Budget Allocation
+- "Q3", "performance", "metrics" → Review Q3 Performance  
+- "feature", "roadmap" → Feature Roadmap
+- "timeline", "deadline", "schedule" → Timeline & Milestones
+- "team", "assign" → Team Assignments
+
+PROMPT STYLE:
+- Warm, friendly, conversational
+- Keep messages short (10-15 words)
+- Use gentle emojis sparingly
+- Examples: "Shall we discuss the budget? 💭" or "What about team assignments? 😊"
+
+Respond ONLY with valid JSON in this exact format:
+{{
+  "current_topic": "agenda item title or 'off-topic'",
+  "items_covered": ["item_1", "item_2"],
+  "items_missed": ["item_3", "item_4"],
+  "prompts": [
+    {{
+      "type": "missing",
+      "message": "Warm, friendly suggestion",
+      "related_item_id": "Item Title",
+      "priority": "medium"
+    }}
+  ]
+}}
+
+CRITICAL RULES: 
+- items_covered/items_missed use item IDs (e.g., "item_1")
+- related_item_id in prompts uses item TITLES (e.g., "Budget Allocation")
+- Generate 0-2 prompts max
+- **NEVER EVER generate prompts for items marked as "covered"**
+- **ONLY generate prompts for items in items_missed**
+- NEVER generate multiple prompts for the same item
+- Only generate prompts for items that are truly being ignored
+- If only 1-2 items are missed, only generate 1-2 prompts (not 3)
+- Empty prompts array is perfectly fine if nothing is missed
+"""
+        
+        try:
+            print(f"🤖 Calling LLM for analysis...")
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a meeting agenda tracking assistant. Always respond with valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500
+            )
+            
+            result_text = response.choices[0].message.content
+            print(f"📥 LLM Response: {result_text[:200]}...")
+            
+            result = json.loads(result_text)
+            self._update_agenda_status(result)
+            self._generate_prompts(result)
+            
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Failed to parse LLM response: {e}")
+            print(f"Raw response: {result_text}")
+        except Exception as e:
+            print(f"⚠️ Analysis error: {e}")
+    
+    def _update_agenda_status(self, analysis: Dict):
+        """Update agenda item statuses based on analysis"""
+        # First, mark any newly covered items
+        # LLM might return IDs or titles, so check both
+        items_covered = analysis.get('items_covered', [])
+        
+        for item in self.agenda_items:
+            # Check if item ID or title is in items_covered
+            if item.id in items_covered or item.title in items_covered:
+                if item.status != 'covered':
+                    item.status = 'covered'
+                    item.covered_at = datetime.now().isoformat()
+                    print(f"✅ Covered: {item.title}")
+        
+        # Auto-dismiss prompts for ALL covered items (not just newly covered)
+        covered_titles = {item.title for item in self.agenda_items if item.status == 'covered'}
+        
+        if covered_titles:
+            before_count = len(self.active_prompts)
+            self.active_prompts = [
+                p for p in self.active_prompts 
+                if p.related_item_id not in covered_titles
+            ]
+            dismissed = before_count - len(self.active_prompts)
+            if dismissed > 0:
+                print(f"🗑️ Auto-dismissed {dismissed} prompts for: {covered_titles}")
+    
+    def _generate_prompts(self, analysis: Dict):
+        """Generate UI prompts based on analysis"""
+        new_prompts = []
+        
+        # Get set of covered item titles to avoid creating prompts for them
+        covered_titles = {item.title for item in self.agenda_items if item.status == 'covered'}
+        if covered_titles:
+            print(f"🚫 Filtering out prompts for covered items: {covered_titles}")
+        
+        for prompt_data in analysis.get('prompts', []):
+            # Skip prompts for items that are already covered
+            if prompt_data['related_item_id'] in covered_titles:
+                print(f"⏭️ Skipping prompt for covered item: {prompt_data['related_item_id']}")
+                continue
+            
+            # Avoid duplicate prompts - check both exact message AND same item
+            existing = any(
+                (p.message == prompt_data['message']) or 
+                (p.related_item_id == prompt_data['related_item_id'])
+                for p in self.active_prompts
+            )
+            
+            if not existing:
+                self.prompt_counter += 1
+                prompt = AgendaPrompt(
+                    id=f"prompt_{self.prompt_counter}_{int(datetime.now().timestamp() * 1000)}",
+                    type=prompt_data['type'],
+                    message=prompt_data['message'],
+                    related_item_id=prompt_data['related_item_id'],
+                    priority=prompt_data['priority'],
+                    created_at=datetime.now().isoformat()
+                )
+                new_prompts.append(prompt)
+                print(f"💡 New prompt: {prompt.message}")
+        
+        # Add new prompts
+        self.active_prompts.extend(new_prompts)
+        
+        # Limit prompts but don't force filling to 3
+        # Only keep truly important ones (max 3, but can be fewer)
+        if len(self.active_prompts) > 3:
+            priority_order = {'high': 3, 'medium': 2, 'low': 1}
+            self.active_prompts.sort(
+                key=lambda p: priority_order.get(p.priority, 0), 
+                reverse=True
+            )
+            self.active_prompts = self.active_prompts[:3]
+    
+    def dismiss_prompt(self, prompt_id: str):
+        """Remove a prompt (e.g., when user addresses it)"""
+        self.active_prompts = [p for p in self.active_prompts if p.id != prompt_id]
+        print(f"🗑️ Dismissed prompt: {prompt_id}")
+    
+    def get_state(self) -> Dict:
+        """Get current agenda state for UI"""
+        return {
+            "meetingTitle": self.meeting_title,
+            "items": [
+                {
+                    "id": item.id,
+                    "title": item.title,
+                    "description": item.description,
+                    "status": item.status,
+                    "coveredAt": item.covered_at,
+                    "keywords": item.keywords
+                }
+                for item in self.agenda_items
+            ],
+            "prompts": [
+                {
+                    "id": p.id,
+                    "type": p.type,
+                    "message": p.message,
+                    "relatedItemId": p.related_item_id,
+                    "priority": p.priority,
+                    "createdAt": p.created_at
+                }
+                for p in self.active_prompts
+            ],
+            "conversationCount": len(self.conversation_history)
+        }
+
+
+# WebSocket Server for real-time communication with Swift UI
+class AgendaWebSocketServer:
+    def __init__(self, tracker: AgendaTracker, port: int = 8765):
+        self.tracker = tracker
+        self.port = port
+        self.clients = set()
+    
+    async def handler(self, websocket):
+        """Handle WebSocket connections"""
+        self.clients.add(websocket)
+        client_id = id(websocket)
+        print(f"🔌 Client #{client_id} connected (total: {len(self.clients)})")
+        
+        try:
+            # Send initial state
+            await websocket.send(json.dumps({
+                "type": "initial_state",
+                "data": self.tracker.get_state()
+            }))
+            
+            async for message in websocket:
+                data = json.loads(message)
+                
+                if data['type'] == 'transcription':
+                    # Receive transcription from Swift
+                    self.tracker.add_transcription(
+                        speaker=data['speaker'],
+                        text=data['text']
+                    )
+                    
+                    # Broadcast updated state to all clients
+                    await self.broadcast_state()
+                
+                elif data['type'] == 'dismiss_prompt':
+                    self.tracker.dismiss_prompt(data['promptId'])
+                    await self.broadcast_state()
+                
+                elif data['type'] == 'mark_item_done':
+                    # Mark an agenda item as covered by title
+                    item_title = data.get('itemTitle')
+                    if item_title:
+                        for item in self.tracker.agenda_items:
+                            if item.title == item_title:
+                                item.status = 'covered'
+                                item.covered_at = datetime.now().isoformat()
+                                print(f"✅ Manually marked as done: {item.title}")
+                                
+                                # Auto-dismiss prompts related to this item
+                                before_count = len(self.tracker.active_prompts)
+                                self.tracker.active_prompts = [
+                                    p for p in self.tracker.active_prompts 
+                                    if p.related_item_id != item.title
+                                ]
+                                dismissed = before_count - len(self.tracker.active_prompts)
+                                if dismissed > 0:
+                                    print(f"🗑️ Auto-dismissed {dismissed} prompt(s) for: {item.title}")
+                                break
+                    await self.broadcast_state()
+                
+                elif data['type'] == 'get_state':
+                    await websocket.send(json.dumps({
+                        "type": "state_update",
+                        "data": self.tracker.get_state()
+                    }))
+        
+        except websockets.exceptions.ConnectionClosed as e:
+            print(f"⚠️ Client #{client_id} connection closed: {e.reason if hasattr(e, 'reason') else 'unknown'}")
+        except Exception as e:
+            print(f"❌ Client #{client_id} error: {e}")
+        finally:
+            self.clients.remove(websocket)
+            print(f"🔌 Client #{client_id} disconnected (remaining: {len(self.clients)})")
+    
+    async def broadcast_state(self):
+        """Send updated state to all connected clients"""
+        if self.clients:
+            message = json.dumps({
+                "type": "state_update",
+                "data": self.tracker.get_state()
+            })
+            
+            await asyncio.gather(
+                *[client.send(message) for client in self.clients],
+                return_exceptions=True
+            )
+    
+    async def start(self):
+        """Start WebSocket server with keepalive"""
+        async with websockets.serve(
+            self.handler, 
+            "localhost", 
+            self.port,
+            ping_interval=20,  # Send ping every 20 seconds
+            ping_timeout=60    # Wait 60 seconds for pong before closing
+        ):
+            print(f"🌐 WebSocket server running on ws://localhost:{self.port}")
+            print(f"⏱️  Keepalive: ping every 20s, timeout 60s")
+            await asyncio.Future()  # Run forever
+
+
+async def main():
+    """Main entry point"""
+    import sys
+    
+    # Load agenda file if provided
+    agenda_file = sys.argv[1] if len(sys.argv) > 1 else None
+    
+    if not agenda_file:
+        print("⚠️ No agenda file provided. Usage: python agenda_tracker.py <agenda.json>")
+        print("📝 Creating example agenda file: example_agenda.json")
+        
+        example_agenda = {
+            "meetingTitle": "Product Sprint Planning",
+            "items": [
+                {
+                    "id": "item_1",
+                    "title": "Review Last Sprint",
+                    "description": "Discuss completed tasks and blockers",
+                    "keywords": ["sprint", "review", "completed", "blockers", "retrospective"],
+                    "estimatedMinutes": 10
+                },
+                {
+                    "id": "item_2",
+                    "title": "Budget Allocation",
+                    "description": "Discuss budget for next quarter",
+                    "keywords": ["budget", "funding", "cost", "resources", "financial"],
+                    "estimatedMinutes": 15
+                },
+                {
+                    "id": "item_3",
+                    "title": "Timeline & Deadlines",
+                    "description": "Set milestones and delivery dates",
+                    "keywords": ["timeline", "deadline", "milestone", "schedule", "delivery"],
+                    "estimatedMinutes": 10
+                }
+            ]
+        }
+        
+        with open("example_agenda.json", "w") as f:
+            json.dump(example_agenda, f, indent=2)
+        
+        agenda_file = "example_agenda.json"
+    
+    # Initialize tracker
+    tracker = AgendaTracker(agenda_file)
+    
+    # Start WebSocket server
+    server = AgendaWebSocketServer(tracker)
+    await server.start()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
