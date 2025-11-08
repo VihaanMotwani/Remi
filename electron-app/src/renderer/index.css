@@ -1,0 +1,77 @@
+:root {
+  --color-primary: #127BBE;
+  --color-secondary: #374151;
+  --color-muted: #959595;
+  --color-background-glass: rgba(255, 255, 255, 0.25);
+  --color-white: #ffffff;
+  /* Add more colors as you like */
+}
+
+body {
+    background-color: rgba(23, 32, 42, 0.7); /* Deep navy background */
+    background-image: linear-gradient(to right, 
+        rgba(23, 32, 42, 0.7),
+        rgba(44, 62, 80, 0.7) 50%,
+        rgba(23, 32, 42, 0.7)); /* Professional gradient */
+    border: 1px solid rgba(255, 255, 255, 0.08); /* Subtle highlight */
+
+  color: #222222;
+  font-family: system-ui, sans-serif;
+}
+
+/* Automatically switches when system is in dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #127BBE;
+    --color-secondary: #374151;
+    --color-muted: #959595;
+    --color-background-glass: rgba(255, 255, 255, 0.25);
+    --color-white: #ffffff;
+    /* Add more colors as you like */
+  }
+
+  body {
+    background-color: #050D15;
+    color: #f5f5f5;
+  }
+
+  h1, p {
+    color: #e0e0e0;
+  }
+
+  button {
+    background-color: #333;
+    color: white;
+  }
+
+
+
+}
+
+#app-container {
+  margin: 80px;                 /* outer spacing */
+  width: calc(100% - 160px);   /* full width minus left+right margin */
+  height: calc(100vh - 160px); /* full height minus top+bottom margin */
+  
+    /* background-color: rgba(23, 32, 42, 0.7);
+    background-image: linear-gradient(to right, 
+        rgba(23, 32, 42, 0.7),
+        rgba(44, 62, 80, 0.7) 50%,
+        rgba(23, 32, 42, 0.7));
+    border: 1px solid rgba(255, 255, 255, 0.08);  */
+
+  /* outline: #023467 solid 2px; */
+  border-radius: 45px;
+  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;      /* so padding/border included in size */
+}
+
+
+/* Works in Chrome, Edge, Safari, and Electron */
+::-webkit-scrollbar {
+  width: 8px;
+}
+

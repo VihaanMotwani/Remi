@@ -1,0 +1,59 @@
+export interface EventType {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  priority: 'urgent' | 'high' | 'low';
+  type: 'event' | 'task';
+  completed?: boolean;
+}
+
+export interface DBEventType {
+  id: string;                     // uuid, primary key
+  calendar_id?: string | null;    // text, nullable
+  title: string;                  // text, not null
+  description?: string | null;    // text, nullable
+  is_task?: boolean | null;       // boolean, nullable, default false
+  start_time?: string | null;     // timestamp with timezone, nullable, ISO string
+  end_time?: string | null;       // timestamp with timezone, nullable, ISO string
+  attendees?: string[] | null;    // text array, nullable
+  location?: string | null;       // text, nullable
+  links?: string[] | null;        // text array, nullable
+  notes?: string | null;          // text, nullable
+  action_items?: any | null;      // jsonb, nullable
+  related_projects?: string[] | null; // uuid array, nullable
+  ai_summary?: string | null;     // text, nullable
+  context_score?: number | null;  // double precision, nullable
+  created_at?: string | null;     // timestamp with timezone, nullable, default now()
+}
+
+export type EventFromDb = {
+  id: string;
+  calendar_id: string | null;
+  title: string;
+  description: string | null;
+  is_task: boolean | null;
+  start_time: string | null; // ISO string from DB
+  end_time: string | null; // ISO string from DB
+  attendees: string[] | null;
+  location: string | null;
+  links: string[] | null;
+  notes: string | null;
+  action_items: Record<string, any> | null;
+  related_projects: string[] | null;
+  ai_summary: string | null;
+  context_score: number | null;
+  created_at: string | null;
+};
+
+export type Meeting = {
+  id: string;
+  startTime: Date;
+  durationMinutes: number;
+  title: string;
+  attendees: string[];
+  agenda: string;
+  preparationNotes: string;
+  meetingNotes: string;
+  actionItems: string;
+};

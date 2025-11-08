@@ -1,0 +1,265 @@
+:root {
+  --bg-color: #121212;
+  --sidebar-bg: #1e1e1e;
+  --text-primary: #a0a0a0;
+  --text-secondary: #a0a0a0;
+  --highlight: #5D96CF;
+  --past-text: #666666;
+  --border-color: #5D96CF;
+  --selected-bg: #023466;
+  --selected-text: #f0f0f0;
+}
+
+/* Container: full height minus header/footer, flex row */
+.meetingsContainer {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: calc(100vh - 160px); /* Adjust as needed */
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  border-radius: 45px;
+}
+
+/* Sidebar and details panel scroll independently */
+.meetingsContainer > aside,
+.meetingsContainer > main {
+  max-height: 100%;
+  overflow-x: hidden;
+}
+
+/* Sidebar fixed width and styling */
+.sidebar {
+  flex: 0 0 360px;
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 2rem;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+  overflow-y: auto;
+}
+
+/* Details panel fills remaining space */
+.detailsPanel {
+  flex: 1 1 auto;
+  padding: 2rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-width: 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+/* Meeting lists */
+.meetingList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 40vh;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+.pastList {
+  max-height: 25vh;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+/* Details columns section */
+.detailsColumnsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  /* background: #1e1e1e; */
+  outline: 1px solid #152738;
+  background-color: rgba(23, 32, 42, 0.5);
+  padding: 1rem;
+  border-radius: 8px;
+  color: var(--text-primary);
+  overflow-y: auto;
+  user-select: text;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+/* Hide scrollbars on WebKit browsers */
+.sidebar::-webkit-scrollbar,
+.detailsPanel::-webkit-scrollbar,
+.meetingList::-webkit-scrollbar,
+.pastList::-webkit-scrollbar,
+.detailsColumnsSection::-webkit-scrollbar {
+  display: none;
+}
+
+/* Section titles */
+.sectionTitle {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--highlight);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: text;
+}
+
+.pastTitle {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+/* Each meeting item */
+.meetingItem {
+  display: flex;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+  color: var(--text-primary);
+  text-align: left;
+  align-items: center;
+  min-height: 64px;
+}
+
+.meetingItem:hover {
+  background-color: var(--selected-bg);
+}
+
+.selected {
+  background-color: var(--highlight);
+  color: #121212;
+  font-weight: 600;
+}
+
+.selected .title,
+.selected .attendees,
+.selected .agenda,
+.selected .duration,
+.selected .timeCol {
+  color: var(--selected-text);
+}
+
+/* Past meetings style */
+.past {
+  color: var(--past-text);
+  cursor: default;
+}
+
+.pastSelected {
+  background-color: #444444;
+  color: #ccc;
+  font-weight: normal;
+}
+
+/* Time & duration column */
+.timeCol {
+  flex: 0 0 72px;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  user-select: text;
+  gap: 2px;
+  white-space: nowrap;
+  padding-right: 12px;
+  min-width: 72px;
+  align-items: flex-start;
+}
+
+.duration {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Details column inside meeting item */
+.detailsCol {
+  font: inherit;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+  user-select: text;
+}
+
+.title {
+  font-weight: 600;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attendees {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agenda {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Details panel content */
+.detailsTitle {
+  margin: 0 0 1rem 0;
+  font-weight: 700;
+  font-size: 1.6rem;
+  user-select: text;
+  color: var(--highlight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detailsColumns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  height: 100%;
+}
+
+.detailsColumnsSection h4 {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.1rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.4rem;
+  color: var(--highlight);
+  user-select: text;
+}
+
+.detailsColumnsSection p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}
+
+/* Placeholder when no meeting selected */
+.detailsPlaceholder {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 1.2rem;
+  margin-top: 3rem;
+  user-select: none;
+  text-align: center;
+}

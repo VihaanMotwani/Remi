@@ -1,0 +1,188 @@
+:root {
+  --card-bg: #1616185c;
+  --text-primary: #eaeaea;
+  --text-secondary: #b9b9b9;
+  --border: #2b2b2f;
+  --accent: #3a3a3f;
+  --hover: #444;
+  /* New/Revised Variables for Cleaner UI */
+  --summary-bg: #3a3a3f50; 
+  --input-bg: #2b2b2f;
+  --button-draft-bg: #4a4a4f;
+  --button-send-bg: #007aff; 
+}
+
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100%;
+  gap: 1.5rem; 
+  color: var(--text-primary);
+  /* Added "Inter" for modern typography */
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; 
+  transition: background-color 0.3s ease;
+}
+
+.mailCard {
+  width: 750px; /* Increased width */
+  height: 550px; /* Increased height */
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background-color: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+  padding: 30px; /* Increased padding */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); 
+  overflow: auto;
+  transition: all 0.3s ease;
+}
+
+.header {
+  border-bottom: 1px solid var(--accent);
+  padding-bottom: 16px; /* Increased bottom padding */
+  margin-bottom: 20px; /* Increased margin */
+  line-height: 1.6; 
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.header strong {
+  color: var(--text-primary);
+  font-weight: 600; /* Bolder labels */
+}
+
+/* --- Summary Styling for visual separation --- */
+.summaryBox {
+  background-color: var(--summary-bg);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  border: 1px solid #ffffff15;
+}
+
+.summaryBox strong {
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 5px;
+}
+/* -------------------------------------------------------- */
+
+.body {
+  flex-grow: 1;
+  font-size: 1rem; /* Increased font size */
+  line-height: 1.65; /* Increased line height for comfort */
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hover) var(--card-bg);
+  padding-right: 8px;
+  margin-bottom: 15px; /* Margin before response section */
+}
+
+.body::-webkit-scrollbar {
+  width: 6px;
+}
+.body::-webkit-scrollbar-thumb {
+  background-color: var(--hover);
+  border-radius: 10px;
+}
+
+/* --- Response Section Refinements --- */
+.responseSection {
+    /* No styles needed here, mainly a container */
+}
+
+.responseHeading {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.responseBox {
+  width: 100%;
+  min-height: 120px; /* Set minimum height */
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  border: 1px solid var(--accent); 
+  resize: vertical; /* Allow vertical resizing */
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.responseBox:focus {
+  outline: none;
+  border-color: var(--button-send-bg);
+  box-shadow: 0 0 0 1px var(--button-send-bg);
+}
+
+.responseActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.responseActions button {
+  padding: 10px 18px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.draftButton {
+  background-color: var(--button-draft-bg);
+  color: var(--text-secondary);
+}
+
+.draftButton:hover {
+  background-color: #555;
+}
+
+.sendButton {
+  background-color: var(--button-send-bg);
+  color: white;
+}
+
+.sendButton:hover {
+  background-color: #0066cc;
+}
+
+.sendButton:disabled, .draftButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Navigation & Empty States --- */
+.arrowButton {
+  background: transparent;
+  border: none;
+  font-size: 2rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+}
+
+.arrowButton:hover {
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  text-align: center;
+  margin-top: 40vh;
+}
