@@ -40,7 +40,7 @@ export default function Communications() {
   const updateCurrentEmail = (newIndex: number) => {
     setIndex(newIndex);
     // Use optional chaining just in case
-    // setResponseDraft(emails[newIndex]?.draft || "");
+    setResponseDraft(emails[newIndex]?.response || "");
   }
 
   const handleNext = () => {
@@ -65,12 +65,12 @@ export default function Communications() {
         await sendEmailViaGmail(accessToken, current.to_email, current.subject, responseDraft);
       }
       await logSentEmail(current.id, responseDraft);
-      alert("Email sent successfully!");
+      // alert("Email sent successfully!");
       // Automatically advance to the next email after sending
       handleNext(); 
     } catch (error) {
       console.error(error);
-      alert("Error sending email.");
+      // alert("Error sending email.");
     }
   };
 
@@ -131,6 +131,7 @@ export default function Communications() {
               className={styles.responseBox}
               placeholder="Type or edit your response..."
               value={responseDraft}
+              onChange={(e) => setResponseDraft(e.target.value)}
             />
             <div className={styles.responseActions}>
               <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>Send</button>
