@@ -156,6 +156,7 @@ def fetch_all_tasks(service):
     dt_max = datetime.fromisoformat(time_max)
 
     try:
+        # print(service.tasklists().list().execute())
         task_lists = service.tasklists().list(maxResults=50).execute().get("items", [])
         for tl in task_lists:
             tasks = service.tasks().list(tasklist=tl["id"]).execute().get("items", [])
