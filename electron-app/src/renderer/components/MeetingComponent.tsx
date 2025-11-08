@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Meeting } from 'src/types';
-import { fetchTodaysEvents } from '../../api/meetingApi'; // adjust relative path correctly
+import { fetchTodaysMeetings } from '../../api/meetingApi'; // adjust relative path correctly
 import { motion, AnimatePresence } from 'framer-motion';
 import styles from './MeetingComponent.module.css';
 
@@ -13,7 +13,7 @@ const Meetings: React.FC = () => {
     async function loadEvents() {
       try {
         setLoading(true);
-        const data = await fetchTodaysEvents();
+        const data = await fetchTodaysMeetings();
         setMeetings(data);
         if (data.length > 0) setSelectedId(data[0].id);
       } catch {

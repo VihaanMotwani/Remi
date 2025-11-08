@@ -8,12 +8,13 @@ function getTodayRangeUTC() {
   return { start: startUTC.toISOString(), end: endUTC.toISOString() };
 }
 
-export async function fetchTodaysEvents(): Promise<Meeting[]> {
+export async function fetchTodaysMeetings(): Promise<Meeting[]> {
   const { start, end } = getTodayRangeUTC();
 
   const { data, error } = await supabase
     .from('events')
     .select('*')
+    .eq('is_task', false)
     .lte('start_time', end)
     .gte('end_time', start)
     .order('start_time', { ascending: true });
