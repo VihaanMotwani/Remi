@@ -23,7 +23,10 @@ load_dotenv()
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.modify"
+    "https://www.googleapis.com/auth/gmail.modify",   # needed to mark as read
+    "https://www.googleapis.com/auth/gmail.send",     # if you send emails
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/tasks.readonly"
 ]
 
 
