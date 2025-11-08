@@ -1,10 +1,10 @@
 :root {
   --bg-color: #121212;
   --sidebar-bg: #1e1e1e;
-  --text-primary: #a0a0a0;
-  --text-secondary: #a0a0a0;
+  /* --text-primary: #a0a0a0; */
+  /* --text-secondary: #a0a0a0; */
   --highlight: #5D96CF;
-  --past-text: #666666;
+  /* --past-text: #666666; */
   --border-color: #5D96CF;
   --selected-bg: #023466;
   --selected-text: #f0f0f0;
@@ -159,7 +159,7 @@
 .pastSelected {
   background-color: #444444;
   color: #ccc;
-  font-weight: normal;
+  /* font-weight: normal; */
 }
 
 /* Time & duration column */

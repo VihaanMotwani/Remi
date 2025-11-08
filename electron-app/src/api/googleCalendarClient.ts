@@ -6,44 +6,52 @@ export async function fetchTodaysEvents(): Promise<EventType[]> {
   const todayStart = startOfDay(new Date()).toISOString();
   const todayEnd = endOfDay(new Date()).toISOString();
 
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .lt('start_time', todayEnd)
-    .gt('end_time', todayStart)
-    .order('start_time', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching today events:', error);
-    throw error;
-  }
-
-  if (!data) {
-    console.warn('fetchTodaysEvents: no data returned');
-    return [];
-  }
-
-  // Deduplicate by event id here:
-  const uniqueEventsMap = new Map<string, typeof data[0]>();
-  data.forEach(event => uniqueEventsMap.set(event.id, event));
-  const uniqueEvents = Array.from(uniqueEventsMap.values());
-
   try {
+    // Fetch calendar events
+    const { data: events, error: eventsError } = await supabase
+      .from('events')
+      .select('*')
+      .not('start_time', 'is', null)
+      .lt('start_time', todayEnd)
+      .gt('end_time', todayStart);
+
+    if (eventsError) throw eventsError;
+
+    // Fetch tasks
+    const { data: tasks, error: tasksError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('is_task', true)
+      .lt('end_time', todayEnd)
+      .gt('end_time', todayStart);
+
+    if (tasksError) throw tasksError;
+
+    // Combine both
+    const data = [...(events || []), ...(tasks || [])];
+    console.log("🧩 Combined:", data.length);
+
+
+    // Deduplicate by event id
+    const uniqueEventsMap = new Map<string, typeof data[0]>();
+    data.forEach(event => uniqueEventsMap.set(event.id, event));
+    const uniqueEvents = Array.from(uniqueEventsMap.values());
+
+    // Map to frontend type
     return uniqueEvents.map((event: DBEventType) => ({
       id: event.id,
       title: event.title,
-      start: event.start_time ? new Date(event.start_time) : new Date(),
+      start: event.start_time ? new Date(event.start_time) : new Date(event.end_time),
       end: event.end_time ? new Date(event.end_time) : new Date(),
       priority: event.action_items?.priority || 'low',
       type: event.is_task ? 'task' : 'event',
       completed: event.action_items?.completed || false,
     }));
-  } catch (e) {
-    console.error('Error mapping events:', e);
-    throw e;
+  } catch (error) {
+    console.error('Error fetching today events and tasks:', error);
+    throw error;
   }
 }
-
 
 
 export async function updateEvent(eventData: DBEventType): Promise<DBEventType> {

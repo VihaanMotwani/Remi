@@ -1,60 +1,48 @@
-import { DBEventType, Meeting } from 'src/types';
-import { supabase } from '../api/supabaseClient';
+import { supabase } from './supabaseClient';
+import { startOfDay, endOfDay } from 'date-fns';
+import { Meeting } from 'src/types';
 
-function getTodayRangeUTC() {
-  const now = new Date();
-  const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-  const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-  return { start: startUTC.toISOString(), end: endUTC.toISOString() };
-}
+export async function fetchTodaysMeetings(): Promise<Meeting[]> {
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = endOfDay(new Date()).toISOString();
 
-export async function fetchTodaysEvents(): Promise<Meeting[]> {
-  const { start, end } = getTodayRangeUTC();
-
-  const { data, error } = await supabase
+  // Fetch only events (exclude tasks)
+  const { data: events, error: eventsError } = await supabase
     .from('events')
     .select('*')
-    .lte('start_time', end)
-    .gte('end_time', start)
+    .eq('is_task', false)         // <-- Exclude tasks here
+    .gte('start_time', todayStart)
+    .lt('start_time', todayEnd)
     .order('start_time', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching today events:', error);
-    throw error;
-  }
-
-  if (!data) {
-    console.warn('fetchTodaysEvents: no data returned');
+  if (eventsError) {
+    console.error('Error fetching events:', eventsError);
     return [];
   }
 
-  // Deduplicate by event ID
-  const uniqueEventsMap = new Map<string, DBEventType>();
-  data.forEach(event => uniqueEventsMap.set(event.id, event));
-  const uniqueEvents = Array.from(uniqueEventsMap.values());
+  const eventIds = events.map(e => e.id);
+  const { data: notes, error: notesError } = await supabase
+    .from('meeting_notes')
+    .select('*')
+    .in('meeting_id', eventIds);
 
-  try {
-    return uniqueEvents
-      .filter(e => e.start_time && e.end_time)
-      .map(e => {
-        const startTime = new Date(e.start_time);
-        const endTime = new Date(e.end_time);
-        const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
-
-        return {
-          id: e.id,
-          startTime,
-          durationMinutes,
-          title: e.title,
-          attendees: e.attendees ?? [],
-          agenda: e.description ?? '',
-          preparationNotes: e.notes ?? '',
-          meetingNotes: e.ai_summary ?? '',
-          actionItems: e.action_items ? JSON.stringify(e.action_items, null, 2) : '',
-        };
-      });
-  } catch (e) {
-    console.error('Error mapping events:', e);
-    throw e;
+  if (notesError) {
+    console.error('Error fetching meeting notes:', notesError);
   }
+
+  console.log(events);
+  return events.map(event => {
+    const note = notes?.find(n => n.meeting_id === event.id);
+    return {
+      id: event.id,
+      title: event.title ?? 'Untitled Meeting',
+      startTime: new Date(event.start_time),
+      durationMinutes: event.duration_minutes ?? 30,
+      attendees: event.attendees ?? [],
+      agenda: event.agenda ?? '',
+      preparationNotes: note?.preparation_notes ?? '',
+      meetingNotes: note?.notes ?? '',
+      actionItems: note?.action_items ?? '',
+    };
+  });
 }

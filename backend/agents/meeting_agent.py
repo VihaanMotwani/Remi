@@ -1,5 +1,5 @@
-from sync.calendar_sync import fetch_all_events
-from sync.calendar_sync import get_calendar_service
+from sync.calendar_sync import fetch_all_events, fetch_all_tasks
+from sync.calendar_sync import get_calendar_service 
 from core.llm_client import summarize_text_from_meeting
 from core.llm_client import summarize_text_from_calender
 from core.supabase_client import insert_record
@@ -22,26 +22,27 @@ def process_calendar_meetings():
     """Fetch today's meetings from Google Calendar, summarize with Gemini, and insert into Supabase."""
     calendar_service, tasks_service = get_calendar_service()
     meetings = fetch_all_events(calendar_service)
+    tasks = fetch_all_tasks(tasks_service)
+    events = meetings + tasks
 
-    print(f"📅 Total meetings fetched from Google Calendar: {len(meetings)}")
+    print(f"📅 Total events fetched from Google Calendar: {len(events)}")
 
     # 🕒 Filter for today's events only
     today = datetime.date.today()
     start_of_day = datetime.datetime.combine(today, datetime.time.min)
     end_of_day = datetime.datetime.combine(today, datetime.time.max)
 
-    meetings_today = []
-    for m in meetings:
+    today = []
+    for m in events:
         start_time = parse_datetime_safe(m.get("start_time"))
         if not start_time:
             continue
         if start_of_day <= start_time <= end_of_day:
-            meetings_today.append(m)
-
-    print(f"🗓️ Found {len(meetings_today)} meetings scheduled for today.\n")
+            today.append(m)
+    
 
     # 🧠 Process each meeting
-    for m in meetings_today:
+    for m in events:
         text = f"{m['title']} — {m.get('description', '')}".strip()
         if not text or text == "No title — ":
             continue  # skip placeholders
@@ -61,6 +62,7 @@ def process_calendar_meetings():
         record = {
             "title": m["title"],
             "description": m.get("description", ""),
+            "attendees": m.get("attendees", []),
             "ai_summary": (
                 ai_output.get("summary")
                 if isinstance(ai_output, dict) and "summary" in ai_output
@@ -81,11 +83,13 @@ def process_calendar_meetings():
                 if m.get("end_time")
                 else None
             ),
+            "is_task": m.get("is_task", False),
         }
 
         try:
             insert_record("events", record)
         except Exception as e:
             print(f"⚠️ Supabase insert failed for {m['title']}: {e}")
+        
 
     print("✅ Today's meetings processed and inserted into Supabase.\n")
