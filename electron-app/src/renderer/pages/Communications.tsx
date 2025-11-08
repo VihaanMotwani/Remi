@@ -12,6 +12,7 @@ export default function Communications() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [responseDraft, setResponseDraft] = useState<string>("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -57,7 +58,7 @@ export default function Communications() {
 
 const handleSend = async () => {
   try {
-    const response = await fetch('http://localhost:4000/send-reply', {
+    const response = await fetch('https://remi-q7gs.onrender.com/send-reply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -68,6 +69,15 @@ const handleSend = async () => {
       }),
     });
 
+    console.log(response);
+    console.log('Sending reply with:', {
+      threadId: emails[index]?.thread_id,
+      to: emails[index]?.to_email,
+      from: emails[index]?.from_email,
+      body: responseDraft,
+    });
+
+
     const result = await response.json();
 
     if (result.success) {
@@ -76,11 +86,22 @@ const handleSend = async () => {
       // Remove the sent email from the list
       const updatedEmails = emails.filter((_, i) => i !== index);
       setEmails(updatedEmails);
+      // Update index and draft
+      if (updatedEmails.length === 0) {
+        setIndex(0);
+        setResponseDraft("");
+      } else {
+        const newIndex = index % updatedEmails.length;
+        setIndex(newIndex);
+        setResponseDraft(updatedEmails[newIndex]?.response || "");
+      }
     } else {
       console.error('Send failed:', result.error);
     }
   } catch (error) {
     console.error('Network or server error:', error);
+  } finally {
+    setSending(false);
   }
 };
 
@@ -145,7 +166,16 @@ const handleSend = async () => {
                 onChange={(e) => setResponseDraft(e.target.value)}
               />
               <div className={styles.responseActions}>
-                <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>Send</button>
+              <button
+                className={styles.sendButton}
+                disabled={!responseDraft || sending}
+                onClick={() => {
+                  setSending(true);
+                  handleSend();
+                }}
+              >
+                Send
+              </button>
               </div>
             </div>
           </motion.div>
