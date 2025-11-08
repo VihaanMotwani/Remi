@@ -5,6 +5,25 @@ import ScreenCaptureKit
 import Foundation
 import Combine
 
+// MARK: - Visual Effect Blur (for glass morphism)
+struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+    
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
 // MARK: - Agenda WebSocket Client
 class AgendaWebSocketClient: ObservableObject {
     @Published var prompts: [AgendaPrompt] = []
@@ -150,6 +169,25 @@ class AgendaWebSocketClient: ObservableObject {
         }
     }
     
+    func markItemAsDone(relatedItemId: String) {
+        // Send message to agenda tracker to mark item as covered
+        let message: [String: Any] = [
+            "type": "mark_item_done",
+            "itemTitle": relatedItemId  // relatedItemId is the item title
+        ]
+        
+        if let data = try? JSONSerialization.data(withJSONObject: message),
+           let text = String(data: data, encoding: .utf8) {
+            webSocket?.send(.string(text)) { error in
+                if let error = error {
+                    print("❌ Failed to mark item as done: \(error)")
+                } else {
+                    print("✅ Marked item as done: \(relatedItemId)")
+                }
+            }
+        }
+    }
+    
     func disconnect() {
         webSocket?.cancel(with: .goingAway, reason: nil)
         isConnected = false
@@ -161,7 +199,7 @@ class MicrophoneManager: NSObject, ObservableObject {
     @Published var isListening = false
     @Published var audioLevel: Float = 0.0
     @Published var permissionGranted = false
-    @Published var captureSystemAudio = false
+    @Published var captureSystemAudio = true  // Always capture system audio
     
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
@@ -211,10 +249,10 @@ class MicrophoneManager: NSObject, ObservableObject {
     }
     
     func startTranscriptionProcess(streamType: String) -> (Process?, Pipe?) {
-        // Get the path to the shell wrapper script
+        // Get the path to the shell wrapper script (using Realtime API)
         let executablePath = Bundle.main.executablePath ?? ""
         let executableDir = (executablePath as NSString).deletingLastPathComponent
-        let scriptPath = (executableDir as NSString).appendingPathComponent("run_transcription.sh")
+        let scriptPath = (executableDir as NSString).appendingPathComponent("run_transcription_realtime.sh")
         
         let pipe = Pipe()
         let process = Process()
@@ -517,53 +555,168 @@ class FloatingControlWindow: NSPanel {
     }
 }
 
-// MARK: - Agenda Prompt Box UI Component
+// MARK: - Circular Progress Ring
+struct CircularProgressRing: View {
+    let progress: Double  // 0.0 to 1.0
+    let itemsCovered: Int
+    let totalItems: Int
+    @State private var animatedProgress: Double = 0
+    
+    var body: some View {
+        ZStack {
+            // Background ring
+            Circle()
+                .stroke(Color.white.opacity(0.2), lineWidth: 4)
+                .frame(width: 50, height: 50)
+            
+            // Progress ring - monochrome white
+            Circle()
+                .trim(from: 0, to: animatedProgress)
+                .stroke(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.white.opacity(0.9), Color.white.opacity(0.6)]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                )
+                .frame(width: 50, height: 50)
+                .rotationEffect(.degrees(-90))
+                .animation(.spring(response: 1.0, dampingFraction: 0.7), value: animatedProgress)
+            
+            // Center text
+            VStack(spacing: 0) {
+                Text("\(Int(progress * 100))%")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                Text("\(itemsCovered)/\(totalItems)")
+                    .font(.system(size: 8))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+        .onAppear {
+            animatedProgress = progress
+        }
+        .onChange(of: progress) { oldValue, newValue in
+            withAnimation(.spring(response: 1.0, dampingFraction: 0.7)) {
+                animatedProgress = newValue
+            }
+        }
+    }
+}
+
+// MARK: - Agenda Prompt Box with Interactive Actions
 struct AgendaPromptBox: View {
     let prompt: AgendaWebSocketClient.AgendaPrompt
     let onDismiss: () -> Void
+    let onMarkDone: () -> Void
+    let onSnooze: () -> Void
     @State private var isVisible = false
+    @State private var showActions = false
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Priority indicator
-            Circle()
-                .fill(priorityColor)
-                .frame(width: 8, height: 8)
-            
-            // Message
-            VStack(alignment: .leading, spacing: 4) {
-                Text(prompt.message)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.white)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 8) {
+            // Main prompt content
+            HStack(spacing: 10) {
+                // Priority indicator with pulsing animation for high priority
+                ZStack {
+                    if prompt.priority == "high" {
+                        Circle()
+                            .fill(priorityColor.opacity(0.3))
+                            .frame(width: 16, height: 16)
+                            .scaleEffect(isVisible ? 1.5 : 1.0)
+                            .animation(
+                                Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                                value: isVisible
+                            )
+                    }
+                    Circle()
+                        .fill(priorityColor)
+                        .frame(width: 8, height: 8)
+                }
                 
-                Text(typeLabel)
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.6))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(prompt.message)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    Text(typeLabel)
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                Spacer()
+                
+                // Action buttons
+                HStack(spacing: 8) {
+                    // Mark as Done
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            onMarkDone()
+                        }
+                    }) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.green.opacity(0.8))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Mark as Done")
+                    
+                    // Dismiss button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            onDismiss()
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Dismiss")
+                }
             }
             
-            Spacer()
-            
-            // Dismiss button
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(.white.opacity(0.5))
+            // Expandable actions
+            if showActions {
+                HStack(spacing: 12) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            onSnooze()
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock.fill")
+                                .font(.system(size: 10))
+                            Text("Snooze 5m")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.1))
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Spacer()
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .buttonStyle(PlainButtonStyle())
-            .help("Dismiss")
         }
-        .padding(12)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.5))
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.08))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(priorityColor.opacity(0.3), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
                 )
         )
-        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
         .scaleEffect(isVisible ? 1 : 0.8)
         .opacity(isVisible ? 1 : 0)
         .onAppear {
@@ -571,13 +724,19 @@ struct AgendaPromptBox: View {
                 isVisible = true
             }
         }
+        .onTapGesture {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                showActions.toggle()
+            }
+        }
     }
     
     var priorityColor: Color {
+        // Monochrome styling - just different opacity levels
         switch prompt.priority {
-        case "high": return .red.opacity(0.8)
-        case "medium": return .yellow.opacity(0.8)
-        default: return .green.opacity(0.8)
+        case "high": return .white.opacity(0.9)
+        case "medium": return .white.opacity(0.6)
+        default: return .white.opacity(0.4)
         }
     }
     
@@ -598,6 +757,17 @@ struct ControllerView: View {
     let window: NSWindow
     @State private var isVisible = false
     @State private var isDragging = false
+    @State private var isAgendaExpanded = false
+    
+    // Computed properties for agenda progress
+    var coveredItemsCount: Int {
+        agendaClient.agendaItems.filter { $0.status == "covered" }.count
+    }
+    
+    var agendaProgress: Double {
+        guard !agendaClient.agendaItems.isEmpty else { return 0.0 }
+        return Double(coveredItemsCount) / Double(agendaClient.agendaItems.count)
+    }
     
     var body: some View {
         VStack(spacing: 16) {
@@ -607,7 +777,7 @@ struct ControllerView: View {
                 ZStack {
                     if micManager.isListening {
                         Circle()
-                            .stroke(Color.green.opacity(0.6), lineWidth: 2)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 2)
                             .frame(width: 38, height: 38)
                             .scaleEffect(1 + CGFloat(micManager.audioLevel) * 3)
                             .animation(.easeInOut(duration: 0.1), value: micManager.audioLevel)
@@ -615,12 +785,12 @@ struct ControllerView: View {
                     
                     Image(systemName: "mic.fill")
                         .font(.system(size: 22))
-                        .foregroundColor(micManager.isListening ? .green : .white)
+                        .foregroundColor(micManager.isListening ? .white : .white.opacity(0.5))
                 }
                 .frame(width: 40, height: 40)
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Remi Audio Monitor")
+                    Text("Remi Meeting Assistant")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
                     
@@ -630,6 +800,16 @@ struct ControllerView: View {
                 }
                 
                 Spacer()
+                
+                // Circular Progress Ring
+                if !agendaClient.agendaItems.isEmpty {
+                    CircularProgressRing(
+                        progress: agendaProgress,
+                        itemsCovered: coveredItemsCount,
+                        totalItems: agendaClient.agendaItems.count
+                    )
+                    .help("Agenda Progress: \(coveredItemsCount)/\(agendaClient.agendaItems.count) items covered")
+                }
                 
                 // Close button
                 Button(action: {
@@ -649,69 +829,130 @@ struct ControllerView: View {
             Divider()
                 .background(Color.white.opacity(0.2))
             
-            // Audio level visualization
-            VStack(spacing: 8) {
-                HStack(spacing: 2) {
-                    ForEach(0..<30, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(CGFloat(index) < CGFloat(micManager.audioLevel * 150) ? 
-                                  Color.green : Color.white.opacity(0.15))
-                            .frame(width: 8, height: 16)
+            // Agenda Items List - Collapsible
+            if !agendaClient.agendaItems.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Header - clickable to expand/collapse
+                    HStack {
+                        Image(systemName: "list.bullet.clipboard")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.6))
+                        Text("Agenda")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.8))
+                        Spacer()
+                        Image(systemName: isAgendaExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isAgendaExpanded.toggle()
+                        }
+                    }
+                    .help("Click to expand agenda")
+                    
+                    // Expandable items list
+                    if isAgendaExpanded {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(agendaClient.agendaItems) { item in
+                                HStack(spacing: 6) {
+                                    Image(systemName: item.status == "covered" ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(item.status == "covered" ? .white.opacity(0.8) : .white.opacity(0.3))
+                                    
+                                    Text(item.title)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(item.status == "covered" ? .white.opacity(0.6) : .white.opacity(0.8))
+                                        .strikethrough(item.status == "covered", color: .white.opacity(0.4))
+                                    
+                                    Spacer()
+                                }
+                                .padding(.leading, 4)
+                            }
+                        }
+                        .padding(.top, 8)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
+                .padding(.vertical, 8)
                 
-                Text("Audio Level: \(Int(micManager.audioLevel * 100))%")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            
-            // System audio toggle
-            HStack {
-                Toggle(isOn: Binding(
-                    get: { micManager.captureSystemAudio },
-                    set: { micManager.captureSystemAudio = $0 }
-                )) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "speaker.wave.2.fill")
-                            .font(.system(size: 12))
-                        Text("Capture System Audio")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.white.opacity(0.9))
-                }
-                .toggleStyle(SwitchToggleStyle(tint: .purple))
-                .disabled(micManager.isListening)
-            }
-            
-            // Agenda Prompts Section
-            if !agendaClient.prompts.isEmpty {
                 Divider()
                     .background(Color.white.opacity(0.2))
-                
-                VStack(spacing: 8) {
-                    HStack {
-                        Image(systemName: "lightbulb.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.yellow.opacity(0.8))
-                        Text("Agenda Suggestions")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.9))
-                        Spacer()
-                    }
-                    
-                    ForEach(Array(agendaClient.prompts.prefix(3)), id: \.id) { prompt in
-                        AgendaPromptBox(prompt: prompt) {
-                            agendaClient.dismissPrompt(prompt.id)
-                        }
-                        .transition(.asymmetric(
-                            insertion: .scale.combined(with: .opacity),
-                            removal: .scale.combined(with: .opacity)
-                        ))
-                    }
-                }
-                .padding(.top, 4)
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: agendaClient.prompts.count)
             }
+            
+            // Agenda Prompts Section - More space for suggestions
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.6))
+                    Text("Suggestions")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                    Spacer()
+                    Text("\(agendaClient.prompts.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white.opacity(0.5))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.white.opacity(0.1))
+                        )
+                }
+                
+                // Scrollable container for prompts with proper sizing
+                if !agendaClient.prompts.isEmpty {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 8) {
+                            ForEach(Array(agendaClient.prompts.prefix(3)), id: \.id) { prompt in
+                                AgendaPromptBox(
+                                    prompt: prompt,
+                                    onDismiss: {
+                                        // Both dismiss and mark as done - user addressed it
+                                        agendaClient.markItemAsDone(relatedItemId: prompt.relatedItemId)
+                                        agendaClient.dismissPrompt(prompt.id)
+                                    },
+                                    onMarkDone: {
+                                        // Mark the related agenda item as covered
+                                        agendaClient.markItemAsDone(relatedItemId: prompt.relatedItemId)
+                                        // Dismiss the prompt
+                                        agendaClient.dismissPrompt(prompt.id)
+                                    },
+                                    onSnooze: {
+                                        // Snooze for 5 minutes (dismiss for now)
+                                        agendaClient.dismissPrompt(prompt.id)
+                                        // TODO: Re-add prompt after 5 minutes
+                                    }
+                                )
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                ))
+                            }
+                        }
+                        .padding(.bottom, 8)
+                    }
+                    .frame(minHeight: 100, maxHeight: .infinity)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: agendaClient.prompts.count)
+                } else {
+                    // Empty state when no prompts
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.4))
+                        Text("You're on track!")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .padding(.top, 4)
             
             // Control buttons
             HStack(spacing: 12) {
@@ -743,28 +984,34 @@ struct ControllerView: View {
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(micManager.isListening ? Color.red : Color.purple)
+                            .fill(Color.white.opacity(micManager.isListening ? 0.12 : 0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(16)
+        .padding(20)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    Color.black.opacity(0.75)
-                        .shadow(.inner(color: Color.white.opacity(0.1), radius: 1, x: 0, y: 1))
+            // Translucent glass morphism effect like Cluely - more transparent
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.black.opacity(0.01))  // Reduced from 0.3 to 0.15
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.01), lineWidth: 1)
                 )
+                .clipShape(RoundedRectangle(cornerRadius: 20))
         )
-        .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
+        .shadow(color: .black.opacity(0.01), radius: 30, x: 0, y: 15)
         .scaleEffect(isVisible ? 1 : 0.8)
         .opacity(isVisible ? 1 : 0)
         .onAppear {
