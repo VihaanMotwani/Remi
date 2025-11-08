@@ -1,22 +1,24 @@
 import { DBEventType, Meeting } from 'src/types';
 import { supabase } from '../api/supabaseClient';
+import { startOfDay, endOfDay } from 'date-fns';
 
-function getTodayRangeUTC() {
+// 🕒 Use local time range (not UTC)
+function getTodayRangeLocal() {
   const now = new Date();
-  const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-  const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-  return { start: startUTC.toISOString(), end: endUTC.toISOString() };
+  const start = startOfDay(now).toISOString();
+  const end = endOfDay(now).toISOString();
+  return { start, end };
 }
 
 export async function fetchTodaysMeetings(): Promise<Meeting[]> {
-  const { start, end } = getTodayRangeUTC();
+  const { start, end } = getTodayRangeLocal();
 
   const { data, error } = await supabase
     .from('events')
     .select('*')
     .eq('is_task', false)
-    .lte('start_time', end)
-    .gte('end_time', start)
+    // include meetings that start or end today (handle overlaps)
+    .or(`and(start_time.lte.${end},end_time.gte.${start})`)
     .order('start_time', { ascending: true });
 
   if (error) {
@@ -25,7 +27,7 @@ export async function fetchTodaysMeetings(): Promise<Meeting[]> {
   }
 
   if (!data) {
-    console.warn('fetchTodaysEvents: no data returned');
+    console.warn('fetchTodaysMeetings: no data returned');
     return [];
   }
 
