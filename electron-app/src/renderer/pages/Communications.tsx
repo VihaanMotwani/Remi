@@ -40,7 +40,7 @@ export default function Communications() {
   const updateCurrentEmail = (newIndex: number) => {
     setIndex(newIndex);
     // Use optional chaining just in case
-    // setResponseDraft(emails[newIndex]?.draft || "");
+    setResponseDraft(emails[newIndex]?.response || "");
   }
 
   const handleNext = () => {
@@ -55,15 +55,7 @@ export default function Communications() {
 
   const handleSaveDraft = async () => {
     if (!current || !responseDraft) return;
-    try {
-      // await saveEmailDraft(current.id, responseDraft);
-      if (accessToken)
-        await saveDraftViaGmail(accessToken, current.to_email, current.subject, responseDraft);
-      alert("Draft saved successfully!");
-    } catch (error) {
-      console.error(error);
-      alert("Error saving draft.");
-    }
+    //TODO: Save to DB
   };
 
   const handleSend = async () => {
@@ -73,12 +65,12 @@ export default function Communications() {
         await sendEmailViaGmail(accessToken, current.to_email, current.subject, responseDraft);
       }
       await logSentEmail(current.id, responseDraft);
-      alert("Email sent successfully!");
+      // alert("Email sent successfully!");
       // Automatically advance to the next email after sending
       handleNext(); 
     } catch (error) {
       console.error(error);
-      alert("Error sending email.");
+      // alert("Error sending email.");
     }
   };
 
@@ -142,8 +134,7 @@ export default function Communications() {
               onChange={(e) => setResponseDraft(e.target.value)}
             />
             <div className={styles.responseActions}>
-              <button onClick={handleSaveDraft} className={styles.draftButton} disabled={!responseDraft}>💾 Save Draft</button>
-              <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>📤 Send</button>
+              <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>Send</button>
             </div>
           </div>
         </motion.div>
