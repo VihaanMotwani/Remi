@@ -135,7 +135,8 @@ def fetch_unread_messages(service, max_results=50, ascending=True):
         body_text = extract_body(payload)
 
         detailed.append({
-            "id": msg["id"],
+            "message_id": msg["id"],
+            "thread_id": msg.get("threadId", None),
             "datetime": dt,
             "from": frm,
             "to": [addr.strip() for addr in to.split(",")] if to else [],
