@@ -1,0 +1,31 @@
+# === Core Environment ===
+python-dotenv>=1.0.1
+requests>=2.31.0
+
+# === Google APIs ===
+google-api-python-client>=2.146.0
+google-auth>=2.35.0
+google-auth-oauthlib>=1.2.1
+google-auth-httplib2>=0.2.0
+
+# === Gemini (Generative AI) ===
+google-generativeai>=0.7.2
+
+# === Supabase Client ===
+supabase>=2.4.0
+postgrest>=0.13.0
+gotrue>=2.6.0
+storage3>=0.5.0
+realtime>=1.1.0
+
+# === Optional DB + Vector Support ===
+psycopg2-binary>=2.9.9     # for local Postgres access
+sqlalchemy>=2.0.31
+pgvector>=0.2.5
+
+# === Utilities ===
+tqdm>=4.66.1               # progress bars for longer fetches
+pytz>=2024.1               # timezone consistency
+beautifulsoup4
+lxml
+
