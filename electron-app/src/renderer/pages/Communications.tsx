@@ -55,15 +55,7 @@ export default function Communications() {
 
   const handleSaveDraft = async () => {
     if (!current || !responseDraft) return;
-    try {
-      // await saveEmailDraft(current.id, responseDraft);
-      if (accessToken)
-        await saveDraftViaGmail(accessToken, current.to_email, current.subject, responseDraft);
-      alert("Draft saved successfully!");
-    } catch (error) {
-      console.error(error);
-      alert("Error saving draft.");
-    }
+    //TODO: Save to DB
   };
 
   const handleSend = async () => {
@@ -139,11 +131,9 @@ export default function Communications() {
               className={styles.responseBox}
               placeholder="Type or edit your response..."
               value={responseDraft}
-              onChange={(e) => setResponseDraft(e.target.value)}
             />
             <div className={styles.responseActions}>
-              <button onClick={handleSaveDraft} className={styles.draftButton} disabled={!responseDraft}>💾 Save Draft</button>
-              <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>📤 Send</button>
+              <button onClick={handleSend} className={styles.sendButton} disabled={!responseDraft}>Send</button>
             </div>
           </div>
         </motion.div>
