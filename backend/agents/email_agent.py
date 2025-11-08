@@ -50,7 +50,7 @@ def process_emails():
 
             # 🗄️ Insert one row with the draft reply in `response`
             record = {
-                "message_id": e["id"],
+                "message_id": e.get("id") or e.get("thread_id"),
                 "thread_id": e.get("thread_id"),
                 "from_email": e["from"],
                 "to_email": e.get("to", []),
