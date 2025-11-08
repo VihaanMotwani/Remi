@@ -32,7 +32,8 @@
 
 /* Sidebar fixed width and styling */
 .sidebar {
-  flex: 0 0 360px;
+  width: 30%;
+  min-width: 280px;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
