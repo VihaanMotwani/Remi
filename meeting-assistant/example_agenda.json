@@ -1,0 +1,41 @@
+{
+  "meetingTitle": "Q4 Product Planning Meeting",
+  "createdAt": "2025-11-08T10:00:00Z",
+  "items": [
+    {
+      "id": "item_1",
+      "title": "Review Q3 Performance",
+      "description": "Analyze key metrics, successes, and areas for improvement from last quarter",
+      "keywords": ["Q3", "performance", "metrics", "results", "last quarter", "retrospective"],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "item_2",
+      "title": "Budget Allocation",
+      "description": "Discuss budget distribution for Q4 projects and resources",
+      "keywords": ["budget", "funding", "cost", "resources", "financial", "allocation", "money"],
+      "estimatedMinutes": 15
+    },
+    {
+      "id": "item_3",
+      "title": "Feature Roadmap",
+      "description": "Prioritize features for Q4 release",
+      "keywords": ["roadmap", "features", "priorities", "development", "release", "product"],
+      "estimatedMinutes": 20
+    },
+    {
+      "id": "item_4",
+      "title": "Timeline & Milestones",
+      "description": "Set key dates and deliverables for the quarter",
+      "keywords": ["timeline", "deadline", "milestone", "schedule", "delivery", "dates"],
+      "estimatedMinutes": 10
+    },
+    {
+      "id": "item_5",
+      "title": "Team Assignments",
+      "description": "Assign team members to projects and define responsibilities",
+      "keywords": ["team", "assignments", "roles", "responsibilities", "ownership"],
+      "estimatedMinutes": 10
+    }
+  ]
+}
