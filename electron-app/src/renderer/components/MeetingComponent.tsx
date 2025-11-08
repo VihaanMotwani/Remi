@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Meeting } from 'src/types';
-import { fetchTodaysMeetings } from '../../api/meetingApi'; // adjust relative path correctly
+import { fetchTodaysMeetings } from '../../api/meetingApi';
 import { motion, AnimatePresence } from 'framer-motion';
 import styles from './MeetingComponent.module.css';
 
@@ -27,18 +27,28 @@ const Meetings: React.FC = () => {
 
   const now = new Date();
 
+  // ✅ Use local times for filtering & sorting
   const upcoming = meetings
-    .filter(m => m.startTime.getTime() + m.durationMinutes * 60000 > now.getTime())
-    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    .filter(m => {
+      const localStart = new Date(m.startTime);
+      const localEnd = new Date(localStart.getTime() + m.durationMinutes * 60000);
+      return localEnd > now;
+    })
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   const past = meetings
-    .filter(m => m.startTime.getTime() + m.durationMinutes * 60000 <= now.getTime())
-    .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+    .filter(m => {
+      const localStart = new Date(m.startTime);
+      const localEnd = new Date(localStart.getTime() + m.durationMinutes * 60000);
+      return localEnd <= now;
+    })
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
   const selectedMeeting = meetings.find(m => m.id === selectedId) ?? null;
 
   function formatTime(date: Date) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // ✅ Force local timezone formatting
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   if (loading) {
