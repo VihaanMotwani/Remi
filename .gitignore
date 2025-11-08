@@ -185,5 +185,4 @@ typings/
 # Electron-Forge
 out/
 
-*.json
 *.icloud
