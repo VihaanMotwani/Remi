@@ -161,7 +161,7 @@ def fetch_all_tasks(service):
             tasks = service.tasks().list(tasklist=tl["id"]).execute().get("items", [])
             for t in tasks:
                 due = normalize_datetime(t.get("due"))
-                if due and dt_min <= due < dt_max:
+                if due and dt_min <= due <= dt_max:
                     all_tasks.append({
                         "calendar_id": tl["id"],
                         "title": t.get("title", "(no title)"),
@@ -185,6 +185,9 @@ def get_calendar_items():
     calendar_service, tasks_service = get_calendar_service()
     events = fetch_all_events(calendar_service)
     tasks = fetch_all_tasks(tasks_service)
+    print("📋 Task lists:", [tl["title"] for tl in task_lists])
+    print(f"Task: {t.get('title')} | due={t.get('due')}")
+
     combined = events + tasks
     print(f"📅 Fetched {len(combined)} calendar items total.")
     return combined

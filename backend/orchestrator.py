@@ -7,7 +7,6 @@ def main():
     print("🚀 Starting Remi AI Daily Workflow...\n")
 
     # Step 1 — Process Emails
-    print("📧 Step 1: Processing emails...")
     process_emails()
     print("✅ Emails processed successfully.\n")
 

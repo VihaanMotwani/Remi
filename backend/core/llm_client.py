@@ -1,8 +1,19 @@
-import os
 import json
 import re
 import time
 import google.generativeai as genai
+import sys
+import os
+import numpy as np
+import warnings
+from datetime import datetime
+from openai import OpenAI
+import io
+import wave
+from core import text_to_speech
+# or
+from core.text_to_speech import speak_text
+
 
 # ================================
 # 🔧 CONFIG
@@ -244,66 +255,57 @@ Email:
 # ================================
 def generate_daily_voice_summary(context: dict, focus: str = "day"):
     """
-    🔊 Stream a natural spoken summary for the day, tasks, or calendar.
-    Uses Gemini streaming for near-real-time generation and ElevenLabs streaming for voice playback.
+    🔊 Generate and stream a natural spoken summary for the day, tasks, or calendar
+    using OpenAI GPT for text and the tts model for speech.
     """
-    import google.generativeai as genai
-    from elevenlabs import ElevenLabs, stream, VoiceSettings
-    from dotenv import load_dotenv
-    import os
 
-    load_dotenv()
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    tts_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+    import os, json
+    import tempfile
+    import sounddevice as sd
+    import numpy as np
+    from openai import OpenAI
 
-    # --- Prompt style depending on user intent ---
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    # --- Select style of summary based on focus ---
     prompt_templates = {
         "day": (
-            "You are Remi, a warm and conversational AI assistant.\n"
-            "Describe the user's overall day naturally — mention meetings, key tasks, and tone.\n"
-            "Keep it around 4 sentences, friendly and human (no bullet points).\n\n"
+            "You are Remi, a friendly AI assistant speaking aloud to the user.\n"
+            "Summarize their day casually and warmly in **3-4 short sentences**.\n"
+            "Sound natural — like a real person talking, not reading text.\n"
+            "Avoid long details, lists, or questions unless natural.\n\n"
             "Context:\n{json_context}"
         ),
         "tasks": (
-            "You are Remi, a friendly assistant.\n"
-            "Summarize today's tasks and follow-ups conversationally, as if explaining to the user in real life.\n"
-            "Avoid lists and bullets — make it flow naturally in speech.\n\n"
+            "You are Remi, a helpful voice assistant.\n"
+            "Summarize today's key tasks in 2-3 concise sentences, naturally spoken.\n"
+            "Be encouraging but not robotic. Avoid lists.\n\n"
             "Context:\n{json_context}"
         ),
         "calendar": (
             "You are Remi, a professional voice assistant.\n"
-            "Talk through today's calendar — what’s coming up, who’s involved, and any prep needed.\n"
-            "Keep it smooth and natural, not list-like.\n\n"
+            "Briefly describe today's meetings conversationally in 2–3 short sentences.\n"
+            "Keep it warm and easy to follow, like casual speech.\n\n"
             "Context:\n{json_context}"
         ),
     }
+
 
     prompt = prompt_templates.get(focus, prompt_templates["day"]).format(
         json_context=json.dumps(context, indent=2)
     )
 
-    print(f"🧠 Starting Gemini stream for focus: {focus}")
-    full_text = ""
+    print(f"🧠 Generating voice summary for focus: {focus}")
 
-    # Start ElevenLabs stream for near-instant speech
-    for chunk in model.generate_content(prompt, stream=True):
-        if chunk.text:
-            print(chunk.text, end="", flush=True)
-            full_text += chunk.text
+    # --- Step 1: Generate short, natural text using GPT ---
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.9,
+    )
 
-            # Stream each chunk immediately to ElevenLabs
-            with tts_client.text_to_speech.stream(
-                text=chunk.text,  # ✅ explicit argument required
-                voice_id="JBFqnCBsd6RMkjVDRZzb",
-                model_id="eleven_turbo_v2",
-                voice_settings=VoiceSettings(
-                    stability=0.4, similarity_boost=0.8, style=0.6, speed=1.1
-                ),
-            ) as stream_audio:
-                for event in stream_audio:
-                    if event.type == "error":
-                        print(f"⚠️ ElevenLabs stream error: {event.error}")
+    text_output = response.choices[0].message.content.strip()
+    print(f"🗣️ Generated text:\n{text_output}\n")
 
-    print("\n✅ Voice summary finished streaming.")
-    return full_text
+    # --- Step 2: Speak it aloud using ElevenLabs ---
+    speak_text(text_output)

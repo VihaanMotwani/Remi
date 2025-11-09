@@ -20,7 +20,8 @@ def listen_and_route():
         print("🎤 Listening for your voice...")
 
         try:
-            audio = r.listen(source, timeout=8, phrase_time_limit=8)
+            audio = r.listen(source, timeout=12, phrase_time_limit=20)
+
         except sr.WaitTimeoutError:
             print("⌛ Timeout — no speech detected. Exiting.")
             return
@@ -43,7 +44,7 @@ def listen_and_route():
             # --- Compile context from database ---
             context = compile_daily_context()
 
-            # --- Stream Gemini + ElevenLabs live ---
+            # --- Stream Open AI + ElevenLabs live ---
             print("🗣️ Generating and speaking response in real time...")
             summary_text = generate_daily_voice_summary(context, focus)
 

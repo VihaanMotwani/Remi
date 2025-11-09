@@ -22,10 +22,8 @@ def process_calendar_meetings():
     """Fetch today's meetings from Google Calendar, summarize with Gemini, and insert into Supabase."""
     calendar_service, tasks_service = get_calendar_service()
     meetings = fetch_all_events(calendar_service)
-    tasks = fetch_all_events(tasks_service)
-    events = meetings + tasks
-
-    print(f"📅 Total meetings fetched from Google Calendar: {len(meetings)}")
+    #tasks = fetch_all_tasks(tasks_service)
+    events = meetings #+ tasks
 
     # 🕒 Filter for today's events only
     today = datetime.date.today()

@@ -3,18 +3,19 @@ from dotenv import load_dotenv
 import pygame, tempfile, os
 
 load_dotenv()
-client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+tts_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
 
 def speak_text(text: str):
     """Convert text to speech (MP3) and play it using pygame."""
     audio_bytes = b"".join(
-        client.text_to_speech.convert(
+        tts_client.text_to_speech.convert(
             text=text,
-            voice_id="JBFqnCBsd6RMkjVDRZzb",
+            voice_id="JBFqnCBsd6RMkjVDRZzb",  # or another ElevenLabs voice ID
             model_id="eleven_multilingual_v2",
-            output_format="mp3_44100_128"
+            output_format="mp3_44100_128",
         )
     )
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
