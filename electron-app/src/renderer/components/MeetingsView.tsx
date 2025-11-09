@@ -2,7 +2,6 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { LiquidBlob } from './LiquidBlob';
-// import { fetchTodaysMeetings } from 'src/api/meetingApi';
 import { fetchAllMeetings } from 'src/api/meetingsAllApi';
 import type { Meeting } from 'src/types';
 
@@ -25,8 +24,7 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
     (async () => {
       try {
         setLoading(true);
-  // Pull all meetings from events table (non-tasks)
-  const data = await fetchAllMeetings();
+        const data = await fetchAllMeetings();
         if (mounted) {
           setMeetings(data);
           // Select the first UPCOMING meeting by local time; fallback to earliest by startTime
