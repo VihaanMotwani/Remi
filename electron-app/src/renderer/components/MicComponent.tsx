@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Orb from './Orb';
 import {BlobAvatar} from './BlobAvatar';
@@ -10,6 +10,23 @@ interface AnimatedMicBubbleProps {
 }
 
 const AnimatedMicBubble: React.FC<AnimatedMicBubbleProps> = ({ isListening, onComplete }) => {
+  const [agentState, setAgentState] = useState<"idle" | "listening" | "speaking">("idle");
+
+  useEffect(() => {
+    const ws = new WebSocket('ws://127.0.0.1:5000/ws/state'); // matches your backend
+
+    ws.onopen = () => console.log('✅ Connected to Remi WebSocket');
+    ws.onmessage = (event) => {
+      const state = event.data as 'idle' | 'listening' | 'speaking';
+      console.log('🎧 State update from backend:', state);
+      setAgentState(state);
+    };
+    ws.onerror = (e) => console.error('⚠ WebSocket error:', e);
+    ws.onclose = () => console.log('❌ WebSocket closed');
+
+    return () => ws.close();
+  }, []);
+
   return (
     <>
       {/* Fixed mic bubble top-right */}
@@ -49,7 +66,7 @@ const AnimatedMicBubble: React.FC<AnimatedMicBubbleProps> = ({ isListening, onCo
         }
       >
         <div className="styles.container">
-          <VoiceAgentBlob state="listening" />
+          <VoiceAgentBlob state={agentState} />
         </div>
       </motion.div>
     </>
