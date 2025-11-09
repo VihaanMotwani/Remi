@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
@@ -14,22 +14,44 @@ const createWindow = () => {
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      // media: true, 
+      webSecurity: true,
+      sandbox: false,
     },
   });
+
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    if (
+      permission === 'media' ||        // full camera/mic request
+      (permission as any) === 'microphone' || // force allow microphone
+      (permission as any) === 'camera'
+    ) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
 
   mainWindow.setMenu(null);
 
   // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
-  }
+  // if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  //   mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  // } else {
+  //   mainWindow.loadFile(
+  //     path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+  //   );
+  // }
 
   // Open the DevTools.
+  
+  mainWindow.loadFile(
+    path.join(__dirname, `../renderer/index.html`),
+  );
+  mainWindow.loadURL('http://localhost:5173');
   mainWindow.webContents.openDevTools();
+
 };
 
 // This method will be called when Electron has finished

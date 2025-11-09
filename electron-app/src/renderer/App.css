@@ -1,0 +1,28 @@
+h1 {
+    font-family: var(--font-heading);
+    border: none;
+    outline: none;
+    z-index: 100;
+}
+
+body {
+  height: 100vh;
+  margin: 0;
+  display: flex;
+  justify-content: center; 
+  align-items: center;
+  font-family: var(--font-body);
+}
+
+/* Style for your div (the container) */
+.center-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center; 
+  text-align: center;
+  
+  /* Optional: Add some styling to make the container stand out */
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

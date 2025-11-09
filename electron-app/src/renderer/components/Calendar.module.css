@@ -13,13 +13,13 @@
   }
   
 .calendarContainer {
-  /* border-radius: 10px; */
+  border-radius: 10px;
   margin-top: 10px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   user-select: none;
   display: flex;
   flex-direction: column;
-  width: 80vw;
+  width: 55vw;
   height: 70vh;
   overflow-y: hidden;
   color: #5D96CF; /* Soft blue text */

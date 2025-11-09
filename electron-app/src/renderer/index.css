@@ -1,22 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora@0;1&family=Manrope:wght@800&display=swap');
+
 :root {
   --color-primary: #127BBE;
   --color-secondary: #374151;
   --color-muted: #959595;
   --color-background-glass: rgba(255, 255, 255, 0.25);
   --color-white: #ffffff;
+  --font-body: 'Manrope', sans-serif;
+  --font-heading: 'Lora', serif;
   /* Add more colors as you like */
-}
-
-body {
-    background-color: rgba(23, 32, 42, 0.7); /* Deep navy background */
-    background-image: linear-gradient(to right, 
-        rgba(23, 32, 42, 0.7),
-        rgba(44, 62, 80, 0.7) 50%,
-        rgba(23, 32, 42, 0.7)); /* Professional gradient */
-    border: 1px solid rgba(255, 255, 255, 0.08); /* Subtle highlight */
-
-  color: #222222;
-  font-family: system-ui, sans-serif;
 }
 
 /* Automatically switches when system is in dark mode */
