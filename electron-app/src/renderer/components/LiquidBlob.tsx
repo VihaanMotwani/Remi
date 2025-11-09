@@ -1,35 +1,35 @@
-import { motion } from 'motion/react';
-import { useState, useEffect } from 'react';
+import { motion } from "motion/react";
 
-export function LiquidBlob() {
-  const [amplitude, setAmplitude] = useState(0);
+interface LiquidBlobProps {
+  state: "idle" | "talking" | "listening";
+}
 
-  // Simulate voice amplitude changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAmplitude(Math.random() * 0.3);
-    }, 300);
+export function LiquidBlob({ state }: LiquidBlobProps) {
+  // define different amplitudes or speeds based on Remi's state
+  const amplitude =
+    state === "talking" ? 0.3 : state === "listening" ? 0.15 : 0.05;
 
-    return () => clearInterval(interval);
-  }, []);
+  const speed =
+    state === "talking" ? 1.5 : state === "listening" ? 2.5 : 4;
 
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
-      {/* Outer glow layers */}
+      {/* Outer glow */}
       <motion.div
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%)',
-          filter: 'blur(30px)',
+          background:
+            "radial-gradient(circle, rgba(59,130,246,0.3) 0%, transparent 70%)",
+          filter: "blur(30px)",
         }}
         animate={{
           scale: [1, 1.1 + amplitude, 1],
           opacity: [0.3, 0.5 + amplitude, 0.3],
         }}
         transition={{
-          duration: 3,
+          duration: speed,
           repeat: Infinity,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         }}
       />
 
@@ -37,25 +37,26 @@ export function LiquidBlob() {
       <motion.div
         className="absolute w-48 h-48"
         style={{
-          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.6), rgba(147, 197, 253, 0.4))',
-          borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%',
-          filter: 'blur(1px)',
-          backdropFilter: 'blur(20px)',
+          background:
+            "linear-gradient(135deg, rgba(59,130,246,0.6), rgba(147,197,253,0.4))",
+          borderRadius: "40% 60% 70% 30% / 40% 50% 60% 50%",
+          filter: "blur(1px)",
+          backdropFilter: "blur(20px)",
         }}
         animate={{
           borderRadius: [
-            '40% 60% 70% 30% / 40% 50% 60% 50%',
-            '60% 40% 30% 70% / 60% 30% 70% 40%',
-            '50% 50% 50% 50% / 50% 50% 50% 50%',
-            '40% 60% 70% 30% / 40% 50% 60% 50%',
+            "40% 60% 70% 30% / 40% 50% 60% 50%",
+            "60% 40% 30% 70% / 60% 30% 70% 40%",
+            "50% 50% 50% 50% / 50% 50% 50% 50%",
+            "40% 60% 70% 30% / 40% 50% 60% 50%",
           ],
           scale: [1, 1.05 + amplitude, 0.98, 1],
           rotate: [0, 5, -5, 0],
         }}
         transition={{
-          duration: 6,
+          duration: speed * 2,
           repeat: Infinity,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         }}
       />
 
@@ -63,9 +64,10 @@ export function LiquidBlob() {
       <motion.div
         className="absolute w-32 h-32"
         style={{
-          background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)',
-          borderRadius: '50%',
-          filter: 'blur(10px)',
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)",
+          borderRadius: "50%",
+          filter: "blur(10px)",
         }}
         animate={{
           x: [-10, 10, -10],
@@ -73,13 +75,13 @@ export function LiquidBlob() {
           scale: [1, 1.1, 1],
         }}
         transition={{
-          duration: 4,
+          duration: speed * 1.5,
           repeat: Infinity,
-          ease: 'easeInOut',
+          ease: "easeInOut",
         }}
       />
 
-      {/* Ripple effect for voice */}
+      {/* Ripple */}
       <motion.div
         className="absolute w-56 h-56 border border-white/20 rounded-full"
         animate={{
@@ -87,9 +89,9 @@ export function LiquidBlob() {
           opacity: [0.4, 0],
         }}
         transition={{
-          duration: 2,
+          duration: speed * 1.2,
           repeat: Infinity,
-          ease: 'easeOut',
+          ease: "easeOut",
         }}
       />
     </div>

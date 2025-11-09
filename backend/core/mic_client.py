@@ -4,7 +4,7 @@ import asyncio
 from agents.daily_agent import compile_daily_context
 from core.llm_client import generate_daily_voice_summary
 from core.text_to_speech import speak_text  
-from core.server import broadcast_state  
+from core.state_ws import broadcast_state
 from dotenv import load_dotenv
 load_dotenv()
 
