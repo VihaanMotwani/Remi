@@ -1,5 +1,5 @@
-from sync.calendar_sync import fetch_all_events, fetch_all_tasks
-from sync.calendar_sync import get_calendar_service
+from sync.calendar_sync import fetch_all_events, fetch_all_tasks, fetch_all_tasks
+from sync.calendar_sync import get_calendar_service 
 from core.llm_client import summarize_text_from_calender
 from core.supabase_client import insert_record
 from datetime import datetime, timedelta, time as dtime
@@ -30,6 +30,8 @@ def process_calendar_meetings():
 
     calendar_service, tasks_service = get_calendar_service()
     meetings = fetch_all_events(calendar_service)
+    tasks = fetch_all_tasks(tasks_service)
+    events = meetings + tasks
 
     # Define *local* window for today (EST)
     local_today = datetime.now(local_tz).date()
@@ -67,6 +69,7 @@ def process_calendar_meetings():
         record = {
             "title": m["title"],
             "description": m.get("description", ""),
+            "attendees": m.get("attendees", []),
             "ai_summary": (
                 ai_output.get("summary")
                 if isinstance(ai_output, dict) and "summary" in ai_output
