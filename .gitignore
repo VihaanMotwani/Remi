@@ -1,1 +1,12 @@
 node_modules
+/backend/.env
+/backend/client_secret.json
+/backend/daily_report.json
+/backend/token_calendar.json
+/backend/token_gmail.json
+/backend/venv
+/backend/__pycache__/
+/backend/*.pyc
+/backend/agents/__pycache__/
+/backend/core/__pycache__/
+/backend/sync/__pycache__/
