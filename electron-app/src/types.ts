@@ -55,7 +55,7 @@ export type Meeting = {
   agenda: string;
   preparationNotes: string;
   meetingNotes: string;
-  actionItems: string;
+  actionItems: string | string[];
 };
 
 export interface Email {

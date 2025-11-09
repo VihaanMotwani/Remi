@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { LiquidBlob } from './LiquidBlob';
-import { fetchTodaysMeetings } from 'src/api/meetingApi';
+import { fetchAllMeetings } from 'src/api/meetingsAllApi';
 import type { Meeting } from 'src/types';
 
 interface MeetingsViewProps {
@@ -10,8 +10,11 @@ interface MeetingsViewProps {
 }
 
 export function MeetingsView({ onBack }: MeetingsViewProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Selection and layout
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [blobPosition, setBlobPosition] = useState<'center' | 'left'>('center');
+
+  // Data + status
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,8 +24,26 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
     (async () => {
       try {
         setLoading(true);
-        const data = await fetchTodaysMeetings();
-        if (mounted) setMeetings(data);
+        const data = await fetchAllMeetings();
+        if (mounted) {
+          setMeetings(data);
+          // Select the first UPCOMING meeting by local time; fallback to earliest by startTime
+          const nowLocal = new Date();
+          const upcomingFromData = data
+            .filter(m => {
+              const localStart = new Date(m.startTime as unknown as Date);
+              const localEnd = new Date(localStart.getTime() + m.durationMinutes * 60000);
+              return localEnd > nowLocal;
+            })
+            .sort((a, b) => new Date(a.startTime as unknown as Date).getTime() - new Date(b.startTime as unknown as Date).getTime());
+
+          if (upcomingFromData.length > 0) {
+            setSelectedId(upcomingFromData[0].id);
+          } else if (data.length > 0) {
+            const earliest = [...data].sort((a, b) => new Date(a.startTime as unknown as Date).getTime() - new Date(b.startTime as unknown as Date).getTime())[0];
+            setSelectedId(earliest.id);
+          }
+        }
       } catch (e: any) {
         if (mounted) setError(e?.message || 'Failed to load meetings');
       } finally {
@@ -34,8 +55,32 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
     };
   }, []);
 
+  // Local time helpers and ordering
+  const now = new Date();
+  const upcoming = meetings
+    .filter(m => {
+      const localStart = new Date(m.startTime);
+      const localEnd = new Date(localStart.getTime() + m.durationMinutes * 60000);
+      return localEnd > now;
+    })
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  const past = meetings
+    .filter(m => {
+      const localStart = new Date(m.startTime);
+      const localEnd = new Date(localStart.getTime() + m.durationMinutes * 60000);
+      return localEnd <= now;
+    })
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+  const orderedMeetings: Meeting[] = [...upcoming, ...past];
+
+  function formatTime(date: Date) {
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
   const handleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
+    setSelectedId(prev => (prev === id ? null : id));
     setBlobPosition('left');
   };
 
@@ -95,7 +140,7 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
             </div>
           )}
           {!loading && !error &&
-            meetings.map((meeting, index) => (
+            orderedMeetings.map((meeting, index) => (
               <motion.div
                 key={meeting.id}
                 initial={{ opacity: 0, y: 30 }}
@@ -104,7 +149,7 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
                 className="backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden"
                 style={{
                   background:
-                    expandedId === meeting.id ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                    selectedId === meeting.id ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.03)',
                 }}
               >
                 <button
@@ -113,9 +158,7 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
                 >
                   <div className="flex items-center gap-6">
                     <span className="text-white/50 tracking-wider min-w-[80px]" style={{ fontWeight: 200, fontSize: '0.9rem' }}>
-                      {meeting.startTime
-                        ? new Date(meeting.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : '--'}
+                      {meeting.startTime ? formatTime(meeting.startTime) : '--'}
                     </span>
                     <div className="h-8 w-px bg-white/10" />
                     <div className="text-left">
@@ -129,7 +172,7 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
                       </p>
                     </div>
                   </div>
-                  <motion.div animate={{ rotate: expandedId === meeting.id ? 180 : 0 }} transition={{ duration: 0.3 }}>
+                  <motion.div animate={{ rotate: selectedId === meeting.id ? 180 : 0 }} transition={{ duration: 0.3 }}>
                     <ChevronDown className="w-5 h-5 text-white/40" strokeWidth={1.5} />
                   </motion.div>
                 </button>
@@ -137,7 +180,7 @@ export function MeetingsView({ onBack }: MeetingsViewProps) {
                 {/* Expanded Content */}
                 <motion.div
                   initial={false}
-                  animate={{ height: expandedId === meeting.id ? 'auto' : 0, opacity: expandedId === meeting.id ? 1 : 0 }}
+                  animate={{ height: selectedId === meeting.id ? 'auto' : 0, opacity: selectedId === meeting.id ? 1 : 0 }}
                   transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
                   className="overflow-hidden"
                 >
