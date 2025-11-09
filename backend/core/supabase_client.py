@@ -54,16 +54,36 @@ def insert_record(table: str, record: dict):
         return None
 
 def fetch_records(table: str, start=None, end=None, limit=50):
-    """Fetch records created between start and end timestamps (for daily digest)."""
+    """Fetch records created between start and end timestamps (for daily digest), using local timezone (EST)."""
+    from datetime import datetime, time as dtime
+    import pytz
+
     try:
-        query = supabase.table(table).select("*")
-        if start and end:
-            query = query.gte("created_at", start.isoformat()).lte("created_at", end.isoformat())
-        query = query.limit(limit)
+        local_tz = pytz.timezone("America/New_York")
+
+        # Default to today's local EST window if not provided
+        if not start or not end:
+            local_today = datetime.now(local_tz).date()
+            start = local_tz.localize(datetime.combine(local_today, dtime.min))
+            end = local_tz.localize(datetime.combine(local_today, dtime.max))
+
+        # Convert both to UTC before querying Supabase (DB stores UTC)
+        start_utc = start.astimezone(pytz.UTC)
+        end_utc = end.astimezone(pytz.UTC)
+
+        query = (
+            supabase.table(table)
+            .select("*")
+            .gte("created_at", start_utc.isoformat())
+            .lte("created_at", end_utc.isoformat())
+            .limit(limit)
+        )
+
         result = query.execute()
         data = result.data or []
         print(f"📥 Retrieved {len(data)} records from '{table}'")
         return data
+
     except Exception as e:
         print(f"❌ Error fetching {table}: {e}")
         return []

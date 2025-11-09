@@ -113,7 +113,6 @@ Email text:
         if not isinstance(parsed.get("action_items"), list):
             parsed["action_items"] = []
 
-        print("Gemini parsed email summary:", parsed)
         return parsed
 
     except Exception as e:
