@@ -33,6 +33,21 @@ export async function fetchTodaysMeetings(): Promise<Meeting[]> {
   console.log(events);
   return events.map(event => {
     const note = notes?.find(n => n.meeting_id === event.id);
+    // Normalize action items: if object or array, flatten to string[]; if string, split by newline.
+    let actionItems: string | string[] = '';
+    const rawAction = note?.action_items;
+    if (Array.isArray(rawAction)) {
+      actionItems = rawAction.map(a => (typeof a === 'string' ? a : JSON.stringify(a)));
+    } else if (typeof rawAction === 'object' && rawAction) {
+      // If it's an object, try common shapes (e.g., {items: [...]})
+      const maybeList = (rawAction as any).items || Object.values(rawAction);
+      actionItems = Array.isArray(maybeList)
+        ? maybeList.map(a => (typeof a === 'string' ? a : JSON.stringify(a)))
+        : [JSON.stringify(rawAction)];
+    } else if (typeof rawAction === 'string') {
+      actionItems = rawAction.split('\n').filter(Boolean);
+    }
+
     return {
       id: event.id,
       title: event.title ?? 'Untitled Meeting',
@@ -42,7 +57,7 @@ export async function fetchTodaysMeetings(): Promise<Meeting[]> {
       agenda: event.agenda ?? '',
       preparationNotes: note?.preparation_notes ?? '',
       meetingNotes: note?.notes ?? '',
-      actionItems: note?.action_items ?? '',
+      actionItems,
     };
   });
 }

@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import '../styles/claude-serif.css';
 import { LiquidBlob } from './LiquidBlob';
 import { TodoList } from './TodoList';
 import { FloatingButton } from './FloatingButton';
@@ -30,6 +31,16 @@ export function HomeView({ onNavigate }: HomeViewProps) {
       {/* Main content */}
       <div className="relative z-10 w-full max-w-4xl px-8 flex flex-col items-center">
         
+        {/* Heading above the blob */}
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="claude-serif text-white mb-6"
+        >
+          Hi, it&apos;s Remi
+        </motion.h1>
+
         {/* Liquid Blob */}
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
