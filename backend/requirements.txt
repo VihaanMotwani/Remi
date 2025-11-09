@@ -24,8 +24,23 @@ sqlalchemy>=2.0.31
 pgvector>=0.2.5
 
 # === Utilities ===
-tqdm>=4.66.1               # progress bars for longer fetches
-pytz>=2024.1               # timezone consistency
+tqdm>=4.66.1
+pytz>=2024.1
+python-dateutil>=2.9.0.post0
 beautifulsoup4
 lxml
 
+# === Voice & Audio (NEW) ===
+pyaudio>=0.2.14
+SpeechRecognition>=3.14.3
+pygame>=2.6.1
+
+# === LLM + AI Integration ===
+openai>=0.27.0
+elevenlabs>=1.5.1
+
+# === Web Server / Frontend Bridge (NEW) ===
+fastapi>=0.115.2
+uvicorn>=0.30.6
+aiofiles>=24.1.0
+python-multipart>=0.0.9

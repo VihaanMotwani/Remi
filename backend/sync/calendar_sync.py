@@ -3,7 +3,6 @@ calendar_sync.py
 ----------------
 Fetches Google Calendar events and Google Tasks (due today/tomorrow)
 and returns them as clean Python dictionaries for the meeting_agent to process.
-
 """
 
 from __future__ import print_function
@@ -14,6 +13,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
+import json
+import re
 
 # =========================
 # 🔧 LOAD CONFIG
@@ -24,6 +25,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/tasks.readonly",
 ]
+
 
 # =========================
 # 🔐 AUTHENTICATION
@@ -44,9 +46,7 @@ def get_calendar_service():
                 "client_secret.json", SCOPES
             )
             creds = flow.run_local_server(
-                port=0,
-                access_type="offline",
-                prompt="select_account"
+                port=0, access_type="offline", prompt="select_account"
             )
             with open(token_file, "w") as token:
                 token.write(creds.to_json())
@@ -59,25 +59,40 @@ def get_calendar_service():
 # =========================
 # 🕒 HELPERS
 # =========================
+from datetime import datetime, timezone
+import dateutil.parser
+
+from datetime import datetime, timezone
+import dateutil.parser
+
 def normalize_datetime(dt_str):
-    """Convert ISO or date-only strings to timezone-aware UTC datetimes."""
+    """Convert any Google Calendar datetime to timezone-aware UTC."""
     if not dt_str:
         return None
     try:
-        if "T" in dt_str:
-            dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-            return dt.astimezone(timezone.utc)
-        return datetime.fromisoformat(dt_str).replace(tzinfo=timezone.utc)
-    except Exception:
+        dt = dateutil.parser.isoparse(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception as e:
+        print(f"⚠️ normalize_datetime failed for {dt_str}: {e}")
         return None
 
 
 def get_time_window():
-    """Return timeMin and timeMax for today and tomorrow in RFC3339 format."""
-    now = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
-    tomorrow = now + timedelta(days=1)
-    day_after = tomorrow + timedelta(days=1)
-    return now.isoformat(), day_after.isoformat()
+    """Return ISO8601 UTC time range from today 00:00 UTC to day after tomorrow 00:00 UTC."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_after_tomorrow = today_start + timedelta(days=2)
+    return today_start.isoformat(), day_after_tomorrow.isoformat()
+
+
+def clean_html(raw_html: str) -> str:
+    """Remove HTML tags from Google Calendar descriptions."""
+    if not raw_html:
+        return ""
+    clean = re.compile("<.*?>")
+    return re.sub(clean, "", raw_html).strip()
 
 
 # =========================
@@ -120,19 +135,19 @@ def fetch_all_events(service):
             continue
 
         for e in events:
-            start = normalize_datetime(
-                e.get("start", {}).get("dateTime") or e.get("start", {}).get("date")
-            )
+            start = normalize_datetime(e["start"].get("dateTime", e["start"].get("date")))
+
             end = normalize_datetime(
                 e.get("end", {}).get("dateTime") or e.get("end", {}).get("date")
             )
+
             attendees = [a["email"] for a in e.get("attendees", [])] if "attendees" in e else []
 
             all_events.append(
                 {
                     "calendar_id": cal_id,
                     "title": e.get("summary", "No title"),
-                    "description": e.get("description", ""),
+                    "description": clean_html(e.get("description", "")),
                     "is_task": False,
                     "start_time": start,
                     "end_time": end,
@@ -161,7 +176,7 @@ def fetch_all_tasks(service):
             tasks = service.tasks().list(tasklist=tl["id"]).execute().get("items", [])
             for t in tasks:
                 due = normalize_datetime(t.get("due"))
-                if due and dt_min <= due < dt_max:
+                if due and dt_min <= due <= dt_max:
                     all_tasks.append({
                         "calendar_id": tl["id"],
                         "title": t.get("title", "(no title)"),
@@ -185,13 +200,14 @@ def get_calendar_items():
     calendar_service, tasks_service = get_calendar_service()
     events = fetch_all_events(calendar_service)
     tasks = fetch_all_tasks(tasks_service)
+
     combined = events + tasks
-    print(f"📅 Fetched {len(combined)} calendar items total.")
+    print(f"📅 Fetched {len(events)} events and {len(tasks)} tasks ({len(combined)} total).")
     return combined
 
 
 if __name__ == "__main__":
-    # Just preview results (no DB upload)
     items = get_calendar_items()
+    print("\n🧩 Sample fetched items:")
     for i, item in enumerate(items[:5]):
-        print(f"{i+1}. {item['title']} — {item['description'][:80]}")
+        print(json.dumps(item, indent=2, default=str))

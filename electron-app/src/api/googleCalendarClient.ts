@@ -6,6 +6,43 @@ export async function fetchTodaysEvents(): Promise<EventType[]> {
   const todayStart = startOfDay(new Date()).toISOString();
   const todayEnd = endOfDay(new Date()).toISOString();
 
+  const { data: events, error: eventsError } = await supabase
+    .from('events')
+    .select('*')
+    .lt('start_time', todayEnd)
+    .gt('end_time', todayStart)
+    .order('start_time', { ascending: true });
+
+  // Fetch tasks (assuming is_task is a boolean column)
+  const { data: tasks, error: tasksError } = await supabase
+    .from('events')
+    .select('*')
+    .eq('is_task', true)
+    .lte('end_time', todayEnd)
+    .order('start_time', { ascending: true });
+
+  // Handle errors (optional)
+  if (eventsError) {
+    console.error('Error fetching events:', eventsError);
+  }
+
+  if (tasksError) {
+    console.error('Error fetching tasks:', tasksError);
+  }
+
+  // Combine arrays safely
+  const combined = [...(events || []), ...(tasks || [])];
+  const data = combined;
+
+  if (!data) {
+    console.warn('fetchTodaysEvents: no data returned');
+    return [];
+  }
+
+  // Deduplicate by event id here:
+  const uniqueEventsMap = new Map<string, typeof data[0]>();
+  data.forEach(event => uniqueEventsMap.set(event.id, event));
+  const uniqueEvents = Array.from(uniqueEventsMap.values());
   try {
     // Fetch calendar events
     const { data: events, error: eventsError } = await supabase

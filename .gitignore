@@ -92,6 +92,14 @@ backend/venv
 # Electron-Forge
 out/
 
+*.json
+!package.json
+!tsconfig.json
+*.pyc
+
+# Ignore all pycache directories
+*.py[cod]
+__pycache__/
 *.json# Logs
 logs
 *.log
@@ -186,3 +194,14 @@ typings/
 out/
 
 *.icloud
+/backend/.env
+/backend/client_secret.json
+/backend/daily_report.json
+/backend/token_calendar.json
+/backend/token_gmail.json
+/backend/venv
+/backend/__pycache__/
+/backend/*.pyc
+/backend/agents/__pycache__/
+/backend/core/__pycache__/
+/backend/sync/__pycache__/
