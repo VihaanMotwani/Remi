@@ -29,3 +29,6 @@ pytz>=2024.1               # timezone consistency
 beautifulsoup4
 lxml
 
+
+pyaudio
+SpeechRecognition

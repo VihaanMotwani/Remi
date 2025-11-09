@@ -1,0 +1,59 @@
+:root {
+  --bg-color: #121212;
+  --circle-bg: #222;
+  --circle-bg-listening: #3a86ff;
+  --circle-bg-speaking: #ffbe0b;
+  --mic-color: #eee;
+}
+
+.container {
+  background-color: var(--bg-color);
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.circle {
+  background-color: var(--circle-bg);
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.5s ease;
+  position: relative;
+}
+
+.listening {
+  background-color: var(--circle-bg-listening);
+}
+
+.speaking {
+  background-color: var(--circle-bg-speaking);
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 70px;
+  height: 70px;
+  animation: floatTopRight 2s infinite ease-in-out;
+}
+
+@keyframes floatTopRight {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(5px, -5px);
+  }
+}
+
+.micIcon {
+  fill: var(--mic-color);
+  width: 40px;
+  height: 40px;
+}
