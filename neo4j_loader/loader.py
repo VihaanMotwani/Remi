@@ -32,6 +32,7 @@ from .config import (
     EMBEDDINGS_PROVIDER, EMBEDDINGS_MODEL, EMBEDDINGS_DIM,
     NODE_LABELS, RELATIONSHIP_TYPES
 )
+from .ai_linker import gen_candidates, judge_candidates, persist_ai_edges, upsert_ai_edges, upsert_ai_edges_no_apoc
 import re
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -103,8 +104,16 @@ def bootstrap_schema(driver):
                 OPTIONS { indexConfig: { `vector.dimensions`: $dim, `vector.similarity_function`: 'cosine' } };
                 """,
             ]
+        
+        if USE_EMBEDS:
+            stmts = [
+                "CREATE VECTOR INDEX email_vec_idx IF NOT EXISTS FOR (e:Email)  ON (e.vec) OPTIONS { indexConfig: { `vector.dimensions`: $dim, `vector.similarity_function`: 'cosine' } }",
+                "CREATE VECTOR INDEX meet_vec_idx  IF NOT EXISTS FOR (m:Meeting) ON (m.vec) OPTIONS { indexConfig: { `vector.dimensions`: $dim, `vector.similarity_function`: 'cosine' } }",
+                "CREATE VECTOR INDEX task_vec_idx  IF NOT EXISTS FOR (t:Task)   ON (t.vec) OPTIONS { indexConfig: { `vector.dimensions`: $dim, `vector.similarity_function`: 'cosine' } }",
+            ]
             for cypher in stmts:
                 session.run(cypher, dim=EMBEDDINGS_DIM)
+                session.run(cypher, dim=EMBED_DIM)
     print("[INFO] Neo4j schema bootstrapped.")
 
 # --- Postgres Fetchers ---
@@ -252,6 +261,7 @@ def upsert_emails(session, emails):
         rows.append({
             "id": e.get("id"),
             "msg_id": msg_id,
+            "thread_id": e.get("thread_id"),
             "sender_email": e.get("from_email") or e.get("sender_email"),
             "recipients": e.get("to_email") or e.get("recipients") or [],
             "subject": subject,
@@ -266,6 +276,7 @@ def upsert_emails(session, emails):
     MERGE (e:{NODE_LABELS['email']} {{ message_id: coalesce(r.msg_id, 'email-' + toString(r.id)) }})
     SET e.email_id     = r.id,
         e.msg_id       = r.msg_id,
+        e.thread_id    = coalesce(r.thread_id, e.thread_id),
         e.sender_email = r.sender_email,
         e.recipients   = r.recipients,
         e.subject      = r.subject,
@@ -338,7 +349,7 @@ def upsert_relationships(session, emails, events):
                     f"MERGE (p)-[:{RELATIONSHIP_TYPES['attended']}]->(m)",
                     {'att': _norm_email(att), 'id': str(ev['id'])}
                 )
-
+    
 # --- Main Orchestration ---
 def main():
     parser = argparse.ArgumentParser(description="Neo4j Loader for Remi Operational Data")
@@ -371,6 +382,24 @@ def main():
         upsert_events(session, meets, is_task=False)
         upsert_meeting_notes(session, fetch_meeting_notes(None, since, batch_size))
         upsert_relationships(session, emails, meets)
+
+        # --- AI linker (LLM reasoning over candidates) ---
+        candidates = gen_candidates(session, topk=5, min_sim=0.83)
+
+        if candidates:
+            # 2) judge with LLM (choose model via OPENAI_MODEL env)
+            llm = OpenAI()  # uses OPENAI_API_KEY from env
+            accepted = judge_candidates(candidates, llm)
+
+            if accepted:
+                # 3) persist audit trail in Supabase and upsert edges in Neo4j (no APOC)
+                persist_ai_edges(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, accepted)
+                upsert_ai_edges_no_apoc(session, accepted)
+
+            print(f"[INFO] AI proposed {len(candidates)} edges; accepted {len(accepted)}.")
+        else:
+            print("[INFO] AI linker: no candidates generated.")
+
 
     return
 
