@@ -1,2 +1,19 @@
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+import { contextBridge, ipcRenderer } from 'electron';
+
+type OrchestratorResult = { success: boolean; output: string; error?: string };
+
+async function runOrchestrator(): Promise<OrchestratorResult> {
+	try {
+		const output = await ipcRenderer.invoke('run-orchestrator');
+		return { success: true, output };
+	} catch (e: any) {
+		return { success: false, output: '', error: e?.message || String(e) };
+	}
+}
+
+// Expose a minimal, safe API to the renderer
+contextBridge.exposeInMainWorld('api', {
+	platform: process.platform,
+	ping: () => ipcRenderer.invoke('ping') as Promise<string>,
+	orchestrate: () => runOrchestrator(),
+});

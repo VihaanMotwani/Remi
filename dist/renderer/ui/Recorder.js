@@ -40,13 +40,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Recorder = void 0;
-const react_1 = __importStar(require("react"));
-const devices_1 = require("../audio/devices");
-const levels_1 = require("../audio/levels");
-const presence_1 = require("../meeting/presence");
-const uplink_1 = require("../../main/ws/uplink");
-const policy_json_1 = __importDefault(require("../../../config/policy.json"));
-const { ipcRenderer } = window.require('electron');
+import * as React from 'react';
+import { listAudioDevices } from '../audio/devices';    // adjust named imports as needed
+import { getAudioLevels } from '../audio/levels';       // adjust named imports as needed
+import { getPresenceInfo } from '../meeting/presence';  // adjust named imports as needed
+import { uplinkConnect } from '../../main/ws/uplink';   // adjust named imports as needed
+import policy from '../../../config/policy.json';
+import ipcRenderer from 'electron';
+
 const MIME_TYPE = 'audio/webm;codecs=opus';
 const CHUNK_INTERVAL = 500; // ms
 const Recorder = () => {

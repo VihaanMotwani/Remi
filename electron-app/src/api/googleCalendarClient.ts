@@ -6,43 +6,6 @@ export async function fetchTodaysEvents(): Promise<EventType[]> {
   const todayStart = startOfDay(new Date()).toISOString();
   const todayEnd = endOfDay(new Date()).toISOString();
 
-  const { data: events, error: eventsError } = await supabase
-    .from('events')
-    .select('*')
-    .lt('start_time', todayEnd)
-    .gt('end_time', todayStart)
-    .order('start_time', { ascending: true });
-
-  // Fetch tasks (assuming is_task is a boolean column)
-  const { data: tasks, error: tasksError } = await supabase
-    .from('events')
-    .select('*')
-    .eq('is_task', true)
-    .lte('end_time', todayEnd)
-    .order('start_time', { ascending: true });
-
-  // Handle errors (optional)
-  if (eventsError) {
-    console.error('Error fetching events:', eventsError);
-  }
-
-  if (tasksError) {
-    console.error('Error fetching tasks:', tasksError);
-  }
-
-  // Combine arrays safely
-  const combined = [...(events || []), ...(tasks || [])];
-  const data = combined;
-
-  if (!data) {
-    console.warn('fetchTodaysEvents: no data returned');
-    return [];
-  }
-
-  // Deduplicate by event id here:
-  const uniqueEventsMap = new Map<string, typeof data[0]>();
-  data.forEach(event => uniqueEventsMap.set(event.id, event));
-  const uniqueEvents = Array.from(uniqueEventsMap.values());
   try {
     // Fetch calendar events
     const { data: events, error: eventsError } = await supabase
@@ -66,8 +29,6 @@ export async function fetchTodaysEvents(): Promise<EventType[]> {
 
     // Combine both
     const data = [...(events || []), ...(tasks || [])];
-    console.log("🧩 Combined:", data.length);
-
 
     // Deduplicate by event id
     const uniqueEventsMap = new Map<string, typeof data[0]>();
@@ -78,7 +39,7 @@ export async function fetchTodaysEvents(): Promise<EventType[]> {
     return uniqueEvents.map((event: DBEventType) => ({
       id: event.id,
       title: event.title,
-      start: event.start_time ? new Date(event.start_time) : new Date(event.end_time),
+      start: event.start_time ? new Date(event.start_time) : new Date(event.end_time!),
       end: event.end_time ? new Date(event.end_time) : new Date(),
       priority: event.action_items?.priority || 'low',
       type: event.is_task ? 'task' : 'event',
@@ -86,6 +47,36 @@ export async function fetchTodaysEvents(): Promise<EventType[]> {
     }));
   } catch (error) {
     console.error('Error fetching today events and tasks:', error);
+    throw error;
+  }
+}
+
+export async function fetchTodaysTasks(): Promise<EventType[]> {
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = endOfDay(new Date()).toISOString();
+
+  try {
+    const { data: tasks, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('is_task', true)
+      .gte('start_time', todayStart)
+      .lte('start_time', todayEnd)
+      .order('start_time', { ascending: true });
+
+    if (error) throw error;
+
+    return (tasks || []).map((task: DBEventType) => ({
+      id: task.id,
+      title: task.title,
+      start: task.start_time ? new Date(task.start_time) : new Date(task.end_time!),
+      end: task.end_time ? new Date(task.end_time) : new Date(),
+      priority: task.action_items?.priority || 'low',
+      type: 'task' as const,
+      completed: task.action_items?.completed || false,
+    }));
+  } catch (error) {
+    console.error('Error fetching today tasks:', error);
     throw error;
   }
 }

@@ -1,80 +1,80 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, session, ipcMain } from 'electron';
 import path from 'node:path';
-import started from 'electron-squirrel-startup';
+// import started from 'electron-squirrel-startup';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
+// Auto-quit for squirrel events (Windows installer create/remove shortcuts)
+// if (started) app.quit();
+
+// Register permission handler only after app is ready to avoid defaultSession access error
+function registerPermissionHandler() {
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    const allow = ['media', 'microphone', 'camera'];
+    callback(allow.includes(permission as string));
+  });
 }
 
-const createWindow = () => {
-  // Create the browser window.
+const isDev = process.env.NODE_ENV === 'development';
+
+function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
+    show: false, // show after ready-to-show for smoother UX
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      // media: true, 
-      webSecurity: true,
+      contextIsolation: true,
+      nodeIntegration: false,
       sandbox: false,
+      webSecurity: true,
     },
   });
 
-  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
-    if (
-      permission === 'media' ||        // full camera/mic request
-      (permission as any) === 'microphone' || // force allow microphone
-      (permission as any) === 'camera'
-    ) {
-      callback(true);
-    } else {
-      callback(false);
-    }
-  });
-
-
   mainWindow.setMenu(null);
 
-  // and load the index.html of the app.
-  // if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-  //   mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  // } else {
-  //   mainWindow.loadFile(
-  //     path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-  //   );
-  // }
+  // Load renderer from dev server or built file
+  const devServerUrl = process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL;
+  if (isDev) {
+    // Use Forge Vite plugin URL if available, otherwise fallback to default Vite port
+    mainWindow.loadURL(devServerUrl || 'http://localhost:5173');
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    mainWindow.loadFile(path.join(__dirname, `../renderer/index.html`));
+  }
 
-  // Open the DevTools.
-  
-  mainWindow.loadFile(
-    path.join(__dirname, `../renderer/index.html`),
-  );
-  mainWindow.loadURL('http://localhost:5173');
-  mainWindow.webContents.openDevTools();
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+}
 
-};
+// Example IPC handler for preload bridge
+ipcMain.handle('ping', () => 'pong');
+ipcMain.handle('run-orchestrator', async () => {
+  // Spawn the Python orchestrator workflow and return collected output
+  return await new Promise<string>((resolve, reject) => {
+    try {
+      const { spawn } = require('node:child_process');
+      const pythonCmd = process.env.REMI_PYTHON || 'python';
+      const scriptPath = path.resolve(process.cwd(), 'backend', 'orchestrator.py');
+      const child = spawn(pythonCmd, [scriptPath], { cwd: path.resolve(process.cwd(), 'backend') });
+      let buffer = '';
+      child.stdout.on('data', (d: Buffer) => { buffer += d.toString(); });
+      child.stderr.on('data', (d: Buffer) => { buffer += '\n[stderr] ' + d.toString(); });
+      child.on('error', (e: Error) => reject(e));
+      child.on('close', () => resolve(buffer));
+    } catch (e) {
+      reject(e);
+    }
+  });
+});
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
+app.whenReady().then(() => {
+  registerPermissionHandler();
+  createWindow();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
+// Additional main process code can be placed in separate modules.

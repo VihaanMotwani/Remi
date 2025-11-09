@@ -6,7 +6,7 @@ export default function Tasks() {
     return (
         <div className={styles.pageContainer}>
             <Calendar />
-            <FloatingDaySummary />
+            {/* <FloatingDaySummary /> */}
         </div>
     )
 }
