@@ -10,9 +10,12 @@ def speak_text(text: str):
     audio_bytes = b"".join(
         tts_client.text_to_speech.convert(
             text=text,
-            voice_id="JBFqnCBsd6RMkjVDRZzb",  # or another ElevenLabs voice ID
+            voice_id="MClEFoImJXBTgLwdLI5n",  # or another ElevenLabs voice ID
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
+            voice_settings={
+                "style": 0.6,            # adds warmth & emotion
+            },
         )
     )
 

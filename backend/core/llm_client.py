@@ -278,7 +278,7 @@ def generate_daily_voice_summary(context: dict, focus: str = "day"):
         "tasks": (
             "You are Remi, a helpful voice assistant.\n"
             "Summarize today's key tasks in 2-3 concise sentences, naturally spoken.\n"
-            "Be encouraging but not robotic. Avoid lists.\n\n"
+            "Be encouraging, but cover all the key points, and dont be robotic. Avoid lists.\n\n"
             "Context:\n{json_context}"
         ),
         "calendar": (
