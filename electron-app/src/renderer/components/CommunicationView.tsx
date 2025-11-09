@@ -9,16 +9,13 @@ interface CommunicationViewProps {
   onBack: () => void;
 }
 
-interface CommunicationViewProps {
-  onBack: () => void;
-}
-
 export function CommunicationView({ onBack }: CommunicationViewProps) {
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [response, setResponse] = useState('');
+  // Draft of the reply (renamed from `response` to avoid name collision with fetch response object)
+  const [responseDraft, setResponseDraft] = useState('');
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -30,7 +27,7 @@ export function CommunicationView({ onBack }: CommunicationViewProps) {
         if (mounted) {
           setEmails(data as Email[]);
           if (data.length > 0) {
-            setResponse(data[0].response || '');
+            setResponseDraft(data[0].response || '');
           }
         }
       } catch (e: any) {
@@ -48,7 +45,7 @@ export function CommunicationView({ onBack }: CommunicationViewProps) {
     if (currentIndex > 0) {
       const newIndex = currentIndex - 1;
       setCurrentIndex(newIndex);
-      setResponse(emails[newIndex].response || '');
+  setResponseDraft(emails[newIndex].response || '');
     }
   };
 
@@ -56,26 +53,74 @@ export function CommunicationView({ onBack }: CommunicationViewProps) {
     if (currentIndex < emails.length - 1) {
       const newIndex = currentIndex + 1;
       setCurrentIndex(newIndex);
-      setResponse(emails[newIndex].response || '');
+  setResponseDraft(emails[newIndex].response || '');
     }
   };
 
   const handleSend = async () => {
     if (!currentEmail) return;
-    
+    if (!responseDraft.trim()) {
+      setError('Response draft is empty');
+      return;
+    }
+
+  // In the renderer, Node's process.env is not guaranteed; use Vite's import.meta.env.
+  const API_BASE = 'https://remi-q7gs.onrender.com';
+    setSending(true);
+    setError(null);
+
     try {
-      setSending(true);
-      await updateEmailResponse(currentEmail.thread_id, response);
-      
-      // Remove the email from the list
-      const updatedEmails = emails.filter((_, i) => i !== currentIndex);
-      setEmails(updatedEmails);
-      
-      // Move to next email or previous if at end
-      if (updatedEmails.length > 0) {
-        const newIndex = Math.min(currentIndex, updatedEmails.length - 1);
-        setCurrentIndex(newIndex);
-        setResponse(updatedEmails[newIndex]?.response || '');
+      // POST to remote email reply endpoint
+      const httpRes = await fetch(`${API_BASE}/send-reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId: currentEmail.thread_id,
+            // Use original sender as "from" and recipient as "to" as per existing server.mjs contract
+          to: (currentEmail as any).to_email || currentEmail.from_email, // fallback if shape differs
+          from: currentEmail.from_email,
+          body: responseDraft,
+        }),
+      });
+
+      console.log('Sending reply payload:', {
+        threadId: currentEmail.thread_id,
+        to: (currentEmail as any).to_email || currentEmail.from_email,
+        from: currentEmail.from_email,
+        body: responseDraft,
+      });
+
+      // Handle non-2xx quickly
+      if (!httpRes.ok) {
+        const text = await httpRes.text();
+        throw new Error(`HTTP ${httpRes.status}: ${text || httpRes.statusText}`);
+      }
+
+      const result = await httpRes.json().catch(() => ({ success: false, error: 'Invalid JSON response' }));
+
+      if (result.success) {
+        console.log('Reply sent successfully');
+        // Persist updated response locally (if this marks email as handled)
+        try {
+          await updateEmailResponse(currentEmail.thread_id, responseDraft);
+        } catch (persistErr) {
+          console.warn('Failed to persist response update locally:', persistErr);
+        }
+
+        // Remove the handled email
+        const updatedEmails = emails.filter((_, i) => i !== currentIndex);
+        setEmails(updatedEmails);
+
+        if (updatedEmails.length === 0) {
+          setCurrentIndex(0);
+          setResponseDraft('');
+        } else {
+          const newIndex = Math.min(currentIndex, updatedEmails.length - 1);
+          setCurrentIndex(newIndex);
+          setResponseDraft(updatedEmails[newIndex]?.response || '');
+        }
+      } else {
+        throw new Error(result.error || 'Send failed');
       }
     } catch (e: any) {
       console.error('Failed to send response:', e);
@@ -124,7 +169,7 @@ export function CommunicationView({ onBack }: CommunicationViewProps) {
               className="text-white tracking-[0.1em]"
               style={{ fontWeight: 200, fontSize: '2rem' }}
             >
-              Email Triage
+              Emails
             </h2>
           </div>
           <p 
@@ -233,8 +278,8 @@ export function CommunicationView({ onBack }: CommunicationViewProps) {
                     SUGGESTED RESPONSE
                   </p>
                   <textarea
-                    value={response}
-                    onChange={(e) => setResponse(e.target.value)}
+                    value={responseDraft}
+                    onChange={(e) => setResponseDraft(e.target.value)}
                     className="w-full px-6 py-4 rounded-xl border border-blue-500/30 bg-transparent text-white/90 tracking-wide resize-none focus:outline-none focus:border-blue-500/50 transition-colors"
                     style={{ 
                       fontWeight: 200, 

@@ -44,9 +44,17 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => mainWindow.show());
 }
 
-// Example IPC handler for preload bridge
+// Example IPC handlers for preload bridge
 ipcMain.handle('ping', () => 'pong');
+
+// Feature flag to disable spawning orchestrator workflow by default.
+// Set REMI_ENABLE_ORCHESTRATOR=1 to re-enable.
+const ENABLE_ORCHESTRATOR = process.env.REMI_ENABLE_ORCHESTRATOR === '1';
+
 ipcMain.handle('run-orchestrator', async () => {
+  if (!ENABLE_ORCHESTRATOR) {
+    return '[orchestrator disabled] Set REMI_ENABLE_ORCHESTRATOR=1 to enable.';
+  }
   // Spawn the Python orchestrator workflow and return collected output
   return await new Promise<string>((resolve, reject) => {
     try {
