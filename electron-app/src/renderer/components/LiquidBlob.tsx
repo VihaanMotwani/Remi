@@ -1,17 +1,39 @@
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
 
-export function LiquidBlob() {
+export interface LiquidBlobProps {
+  state: 'idle' | 'listening' | 'speaking';
+}
+
+export function LiquidBlob({ state }: LiquidBlobProps) {
   const [amplitude, setAmplitude] = useState(0);
 
-  // Simulate voice amplitude changes
   useEffect(() => {
-    const interval = setInterval(() => {
-      setAmplitude(Math.random() * 0.3);
-    }, 300);
-
+    let interval: NodeJS.Timeout;
+    if (state === 'speaking') {
+      interval = setInterval(() => {
+        setAmplitude(Math.random() * 0.5 + 0.2); // more dynamic
+      }, 150);
+    } else if (state === 'listening') {
+      interval = setInterval(() => {
+        setAmplitude(Math.sin(Date.now() / 400) * 0.15 + 0.2); // smooth pulse
+      }, 60);
+    } else {
+      setAmplitude(0);
+    }
     return () => clearInterval(interval);
-  }, []);
+  }, [state]);
+
+  // Color and glow based on state
+  let mainColor = 'linear-gradient(135deg, rgba(59, 130, 246, 0.6), rgba(147, 197, 253, 0.4))';
+  let glowColor = 'rgba(59, 130, 246, 0.3)';
+  if (state === 'listening') {
+    mainColor = 'linear-gradient(135deg, rgba(34, 197, 94, 0.7), rgba(147, 253, 197, 0.4))'; // greenish
+    glowColor = 'rgba(34, 197, 94, 0.3)';
+  } else if (state === 'speaking') {
+    mainColor = 'linear-gradient(135deg, rgba(251, 191, 36, 0.7), rgba(253, 197, 147, 0.4))'; // yellow/orange
+    glowColor = 'rgba(251, 191, 36, 0.3)';
+  }
 
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
@@ -19,7 +41,7 @@ export function LiquidBlob() {
       <motion.div
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%)',
+          background: `radial-gradient(circle, ${glowColor} 0%, transparent 70%)`,
           filter: 'blur(30px)',
         }}
         animate={{
@@ -37,7 +59,7 @@ export function LiquidBlob() {
       <motion.div
         className="absolute w-48 h-48"
         style={{
-          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.6), rgba(147, 197, 253, 0.4))',
+          background: mainColor,
           borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%',
           filter: 'blur(1px)',
           backdropFilter: 'blur(20px)',

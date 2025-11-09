@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 import '../styles/claude-serif.css';
-import { LiquidBlob } from './LiquidBlob';
-import { TodoList } from './TodoList';
+import { LiquidBlob, type LiquidBlobProps } from './LiquidBlob';
+import { DailySummaryCard } from './DailySummaryCard';
 import { FloatingButton } from './FloatingButton';
 import { Calendar, Mail } from 'lucide-react';
 
@@ -11,12 +12,27 @@ interface HomeViewProps {
 
 export function HomeView({ onNavigate }: HomeViewProps) {
   const today = new Date();
-  const dateString = today.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const dateString = today.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   });
+
+  const [agentState, setAgentState] = useState<LiquidBlobProps['state']>('idle');
+
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8000/ws/state'); // adjust port if needed
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.state) setAgentState(data.state);
+      } catch {}
+    };
+    ws.onopen = () => console.log('Connected to Remi state WebSocket');
+    ws.onclose = () => console.log('Disconnected from Remi state WebSocket');
+    return () => ws.close();
+  }, []);
 
   return (
     <motion.div
@@ -30,7 +46,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
       {/* Main content */}
       <div className="relative z-10 w-full max-w-4xl px-8 flex flex-col items-center">
-        
         {/* Heading above the blob */}
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
@@ -47,7 +62,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 1, delay: 0.3, ease: [0.25, 1, 0.5, 1] }}
         >
-          <LiquidBlob />
+          <LiquidBlob state={agentState} />
         </motion.div>
 
         {/* Date */}
@@ -61,31 +76,30 @@ export function HomeView({ onNavigate }: HomeViewProps) {
           {dateString}
         </motion.p>
 
-        {/* Todo List */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.9 }}
           className="mt-12 w-full"
         >
-          <TodoList />
+          <DailySummaryCard />
         </motion.div>
       </div>
 
       {/* Floating Buttons - Aligned with center vertically */}
       <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 flex justify-between px-8 pointer-events-none">
         <div className="pointer-events-auto">
-          <FloatingButton 
-            icon={Calendar} 
-            label="Meetings" 
+          <FloatingButton
+            icon={Calendar}
+            label="Meetings"
             onClick={() => onNavigate('meetings')}
             delay={1.2}
           />
         </div>
         <div className="pointer-events-auto">
-          <FloatingButton 
-            icon={Mail} 
-            label="Communication" 
+          <FloatingButton
+            icon={Mail}
+            label="Communication"
             onClick={() => onNavigate('communication')}
             delay={1.4}
           />

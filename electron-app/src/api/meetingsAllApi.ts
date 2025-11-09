@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { startOfDay, endOfDay } from 'date-fns';
 import type { Meeting } from 'src/types';
 
 /**
@@ -6,11 +7,17 @@ import type { Meeting } from 'src/types';
  * Normalizes fields into the Meeting shape used by the UI.
  */
 export async function fetchAllMeetings(): Promise<Meeting[]> {
+	const todayStart = startOfDay(new Date()).toISOString();
+	const todayEnd = endOfDay(new Date()).toISOString();
+
 	const { data: events, error } = await supabase
 		.from('events')
 		.select('*')
 		.eq('is_task', false)
+		.gte('start_time', todayStart)
+		.lt('start_time', todayEnd)
 		.order('start_time', { ascending: true });
+        
 
 	if (error) {
 		console.error('Error fetching events:', error);
