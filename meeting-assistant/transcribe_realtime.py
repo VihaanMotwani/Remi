@@ -12,11 +12,49 @@ import json
 import base64
 import struct
 from datetime import datetime
+import random
+import string
+import atexit
+from pathlib import Path
 
-# Get stream type from command line argument
 STREAM_TYPE = sys.argv[1] if len(sys.argv) > 1 else "mic"
 STREAM_ICON = "🎤" if STREAM_TYPE == "mic" else "🔊"
 STREAM_LABEL = "You" if STREAM_TYPE == "mic" else "Other"
+
+# --- Transcript persistence setup ---
+def _random_id(n=6):
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=n))
+
+def _session_file():
+    ts = datetime.now().strftime('%Y%m%dT%H%M%S')
+    rid = _random_id()
+    fname = f"{ts}_{STREAM_TYPE}_{rid}.ndjson"
+    transcripts_dir = Path(__file__).parent / "transcripts"
+    transcripts_dir.mkdir(exist_ok=True)
+    return transcripts_dir / fname
+
+TRANSCRIPT_FILE = _session_file()
+_transcript_fh = open(TRANSCRIPT_FILE, "a", encoding="utf-8")
+
+def append_local(text, stream=STREAM_TYPE, speaker=STREAM_LABEL):
+    obj = {
+        "ts": datetime.now().isoformat(),
+        "stream": stream,
+        "speaker": speaker,
+        "text": text
+    }
+    _transcript_fh.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    _transcript_fh.flush()
+
+def close_transcript_file():
+    try:
+        _transcript_fh.close()
+    except Exception:
+        pass
+atexit.register(close_transcript_file)
+
+# --- transcript_chunks for fallback ---
+transcript_chunks = []
 
 # WebSocket connection to agenda tracker
 AGENDA_TRACKER_URL = "ws://localhost:8765"
@@ -73,43 +111,77 @@ async def handle_realtime_events(realtime_ws):
         try:
             event = json.loads(message)
             event_type = event.get("type")
-            
+
             if event_type == "session.created":
                 log_message("✅ Realtime API session created")
-            
+
             elif event_type == "conversation.item.created":
                 # New conversation item (could be transcript)
                 pass
-            
+
             elif event_type == "response.audio_transcript.delta":
                 # Partial transcript chunk
                 transcript_delta = event.get("delta", "")
                 if transcript_delta:
                     # Buffer these for complete sentences
                     pass
-            
+
             elif event_type == "response.audio_transcript.done":
                 # Complete transcript available
                 transcript = event.get("transcript", "")
                 if transcript and transcript.strip():
                     log_message(transcript, include_label=True)
                     await send_to_agenda_tracker(STREAM_LABEL, transcript)
-            
+                    append_local(transcript)
+                    transcript_chunks.append(transcript)
+
             elif event_type == "conversation.item.input_audio_transcription.completed":
                 # Input audio transcription complete (VAD detected end of speech)
                 transcript = event.get("transcript", "")
                 if transcript and transcript.strip():
                     log_message(transcript, include_label=True)
                     await send_to_agenda_tracker(STREAM_LABEL, transcript)
-            
+                    append_local(transcript)
+                    transcript_chunks.append(transcript)
+
             elif event_type == "error":
                 error_msg = event.get("error", {})
                 log_message(f"❌ Realtime API error: {error_msg}")
-        
+
         except json.JSONDecodeError:
             log_message(f"⚠️ Could not parse event: {message}")
-        except Exception as e:
-            log_message(f"⚠️ Error handling event: {e}")
+# --- Supabase upload logic ---
+def save_transcription_to_supabase():
+    """Read local transcript file, combine all text, and insert into meeting_notes."""
+    try:
+        with open(TRANSCRIPT_FILE, "r", encoding="utf-8") as f:
+            lines = [json.loads(line) for line in f if line.strip()]
+        all_text = "\n".join([obj["text"] for obj in lines])
+        created_at = lines[0]["ts"] if lines else datetime.now().isoformat()
+        stream_type = lines[0]["stream"] if lines else STREAM_TYPE
+        session_id = TRANSCRIPT_FILE.stem
+        source_file = str(TRANSCRIPT_FILE)
+    except Exception as e:
+        # Fallback to transcript_chunks
+        all_text = "\n".join(transcript_chunks)
+        created_at = datetime.now().isoformat()
+        stream_type = STREAM_TYPE
+        session_id = TRANSCRIPT_FILE.stem
+        source_file = str(TRANSCRIPT_FILE)
+
+    # Insert into Supabase (pseudo-code, replace with your actual client)
+    try:
+        from backend.core.supabase_client import insert_record
+        record = {
+            "transcription": all_text,
+            "created_at": created_at,
+            "stream_type": stream_type,
+            "session_id": session_id,
+            "source_file": source_file
+        }
+        insert_record("meeting_notes", record)
+    except Exception as e:
+        print(f"❌ Error uploading to Supabase: {e}")
 
 
 def pcm_to_base64(samples):
