@@ -1,6 +1,8 @@
+# core/server.py
 from fastapi import FastAPI, WebSocket
 import asyncio
-app = FastAPI()
+
+app = FastAPI()  # ✅ must exist for uvicorn
 
 clients = set()
 
@@ -13,14 +15,13 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             await asyncio.sleep(60)  # keep-alive
-    except:
+    except Exception:
         pass
     finally:
         clients.remove(ws)
         print("❌ Frontend disconnected")
 
-
-# 🔸 Helper to broadcast states
+# helper used by mic_client/orchestrator
 async def broadcast_state(state: str):
     """Send state update to all connected frontends."""
     dead = []
@@ -31,3 +32,5 @@ async def broadcast_state(state: str):
             dead.append(ws)
     for ws in dead:
         clients.remove(ws)
+    print(f"📡 Broadcasting state: {state} to {len(clients)} clients")
+

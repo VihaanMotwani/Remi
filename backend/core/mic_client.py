@@ -1,21 +1,32 @@
 import speech_recognition as sr
 import time
 import asyncio
+import json
+import websockets
 from agents.daily_agent import compile_daily_context
 from core.llm_client import generate_daily_voice_summary
-from core.text_to_speech import speak_text  
-from core.server import broadcast_state  
+from core.text_to_speech import speak_text
 from dotenv import load_dotenv
+
 load_dotenv()
 
+# 🧠 Connect to Electron's WebSocket (running on localhost:5050)
+async def send_state(state: str):
+    """Send agent state ('idle', 'listening', 'speaking') to Electron WebSocket."""
+    try:
+        async with websockets.connect("ws://localhost:5050") as ws:
+            await ws.send(json.dumps({"state": state}))
+    except Exception as e:
+        print(f"⚠️ Could not send state '{state}': {e}")
 
-def listen_and_route():
-    """
-    🎧 Remi Voice Assistant — conversational edition (with live state updates)
-    """
+
+async def listen_and_route():
+    """🎧 Remi Voice Assistant — conversational edition (async version)."""
 
     r = sr.Recognizer()
     mic = sr.Microphone()
+
+    await send_state("idle")  # initial
 
     # 🌅 Greeting
     greeting = (
@@ -23,7 +34,7 @@ def listen_and_route():
         "Would you like a quick overview, or should I walk you through your tasks first?"
     )
     print(f"🤖 Remi: {greeting}")
-    asyncio.run(broadcast_state("speaking"))
+    await send_state("speaking")
     speak_text(greeting)
 
     MAX_ATTEMPTS = 3
@@ -31,7 +42,7 @@ def listen_and_route():
     user_text = None
 
     while attempt < MAX_ATTEMPTS and not user_text:
-        asyncio.run(broadcast_state("listening"))
+        await send_state("listening")
         with mic as source:
             print("\n🎧 Calibrating ambient noise... (1.5s)")
             r.adjust_for_ambient_noise(source, duration=1.5)
@@ -55,12 +66,12 @@ def listen_and_route():
                     "Hey, I didn’t quite catch that. Could you repeat what you’d like — "
                     "an overview or your tasks for today?"
                 )
-                asyncio.run(broadcast_state("speaking"))
+                await send_state("speaking")
                 print(f"🤖 Remi: {retry_prompt}")
                 speak_text(retry_prompt)
                 time.sleep(1)
             else:
-                asyncio.run(broadcast_state("idle"))
+                await send_state("idle")
                 print("❌ No response received after retries. Exiting.")
                 speak_text("No worries, Tanya. I’ll check in later when you’re ready.")
                 return
@@ -77,14 +88,15 @@ def listen_and_route():
     print(f"🧠 Command detected: {text}")
     print(f"🎯 Focus area: {focus}")
 
-    # 🧠 Generate response
-    asyncio.run(broadcast_state("speaking"))
+    # 🗣️ Generate and speak response
+    await send_state("speaking")
     context = compile_daily_context()
     print("🗣️ Generating and speaking response in real time...")
     summary_text = generate_daily_voice_summary(context, focus)
 
     # ✅ Wrap up
     closing_message = "All caught up, Tanya. You’re ready to take on the day!"
-    print("\n🏁 Done — Remi has finished responding.")
     speak_text(closing_message)
-    asyncio.run(broadcast_state("idle"))
+    await send_state("idle")
+
+    print("🏁 Done — Remi has finished responding.")

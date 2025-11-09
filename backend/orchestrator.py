@@ -1,3 +1,4 @@
+import asyncio
 from agents.email_agent import process_emails
 from agents.meeting_agent import process_calendar_meetings
 from agents.daily_agent import generate_daily_briefing
@@ -24,9 +25,9 @@ def main():
     else:
         print("⚠️ Morning briefing generated but may not have been sent.\n")
 
-    # Step 4 — Voice Agent Interaction (real-time)
+    # Step 4 — Voice Agent Interaction
     print("🎙 Step 4: Activating Remi voice interface...")
-    listen_and_route()
+    asyncio.run(listen_and_route())
 
     print("🏁 Workflow complete — Remi is up to date and responsive!\n")
 

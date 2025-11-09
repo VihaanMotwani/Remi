@@ -1,58 +1,87 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { WebSocketServer } from 'ws';
+
+// 🧠 Global window reference
+let mainWindow: BrowserWindow | null = null;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
 
+// 🪟 Create the main Electron window
 const createWindow = () => {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: true,     // ✅ enable window.require()
+      contextIsolation: false,   // ✅ allow require() in renderer
+      webSecurity: true,
+      sandbox: false,
     },
+    
   });
 
+  // ✅ Allow mic/camera permissions
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    if (
+      permission === 'media' ||
+      (permission as any) === 'microphone' ||
+      (permission as any) === 'camera'
+    ) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  // Hide default menu bar
   mainWindow.setMenu(null);
 
-  // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
-  }
+  // Load your Vite dev server or built HTML file
+  mainWindow.loadURL('http://localhost:5173');
+  // For production builds, uncomment:
+  // mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // Open the DevTools.
+  // Open DevTools for debugging
   mainWindow.webContents.openDevTools();
 };
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
+// 🧩 WebSocket Server (Electron listens for backend messages)
+function startWebSocketServer() {
+  const wss = new WebSocketServer({ port: 5050 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+  wss.on('connection', (ws) => {
+    console.log('🧩 Remi backend connected to Electron WebSocket');
+
+    ws.on('message', (msg) => {
+      console.log('📨 Message from backend:', msg.toString());
+      if (mainWindow) {
+        // Forward state updates (idle, listening, speaking) to renderer
+        mainWindow.webContents.send('remi-state', msg.toString());
+      }
+    });
+
+    ws.on('close', () => console.log('❌ Backend disconnected'));
+  });
+
+  console.log('✅ Electron WebSocket server running on ws://localhost:5050');
+}
+
+// ⚡ App lifecycle
+app.whenReady().then(() => {
+  createWindow();
+  startWebSocketServer();
+});
+
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
