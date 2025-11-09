@@ -3,11 +3,8 @@ import time
 import asyncio
 import json
 import websockets
-from agents.daily_agent import compile_daily_context
-from core.llm_client import generate_daily_voice_summary
 from core.text_to_speech import speak_text
 from dotenv import load_dotenv
-
 load_dotenv()
 
 # 🧠 Connect to Electron's WebSocket (running on localhost:5050)
@@ -22,6 +19,12 @@ async def send_state(state: str):
 
 async def listen_and_route():
     """🎧 Remi Voice Assistant — conversational edition (async version)."""
+        # ✅ Lazy imports (avoid circular dependency)
+    from agents.daily_agent import compile_daily_context
+    from core.llm_client import generate_daily_voice_summary
+
+    r = sr.Recognizer()
+    mic = sr.Microphone()
 
     r = sr.Recognizer()
     mic = sr.Microphone()

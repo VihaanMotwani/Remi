@@ -188,36 +188,55 @@ Transcript:
 # ================================
 # 🌅 DAILY MORNING BRIEFING
 # ================================
+# ================================
+# 🌅 HUMANIZED MORNING BRIEFING
+# ================================
 def generate_morning_briefing(context: dict, style="friendly"):
+    """
+    Uses Gemini / OpenAI to generate a warm, skimmable morning briefing message.
+    """
+
     prompt = f"""
-You are an AI workplace assistant that generates a **morning briefing report** for a user.
+You are Remi, an AI workplace assistant who sends short, skimmable **morning briefings** over iMessage.
 
-Generate clean JSON with the following keys:
-{{
-  "greeting": "...",
-  "urgent_tasks": [{{"task": "...", "owner": "...", "due_date": "...", "source": "email/meeting/calendar"}}],
-  "follow_up_tasks": [{{"task": "...", "context": "..."}}],
-  "meetings_today": [{{"title": "...", "time": "...", "attendees": ["..."], "location": "...", "priority": "High/Medium/Low"}}],
-  "summary_text": "..."
-}}
+Write a friendly, structured message using this exact tone:
+- Natural and human, not robotic.
+- A few emojis to make it lively.
+- Each section (Summary, Urgent Tasks, Follow-Ups, Meetings) should be concise — max 2–3 lines.
+- If a section is empty, gracefully skip it or write a short positive note like "No urgent tasks today — you're all clear!"
 
-Here’s the context:
+Here’s the latest daily context (from Supabase):
 {json.dumps(context, indent=2)}
-"""
-    try:
-        result = safe_generate_content(prompt, temperature=0.4)
-        text_output = result.text.strip().replace("```json", "").replace("```", "")
-        return json.loads(text_output)
-    except Exception as e:
-        print(f"⚠️ Could not parse Gemini morning report as JSON. Raw output:\n{e}")
-        return {
-            "greeting": "Good morning! Ready to start your day.",
-            "urgent_tasks": [],
-            "follow_up_tasks": [],
-            "meetings_today": [],
-            "summary_text": "Unable to generate detailed report.",
-        }
 
+Now, generate a single text message formatted like this:
+
+🌤️ Morning Briefing — [Date]
+[Greeting or short intro]
+
+🧠 Summary
+[Short paragraph summary]
+
+🔥 Urgent Tasks
+[List items or one-liners, if any]
+
+📌 Follow-Ups
+[List items, if any]
+
+📅 Meetings Today
+[List items with times, if any]
+
+✨ Remi says: [Short motivational or personal closing line]
+"""
+
+    try:
+        result = safe_generate_content(prompt, temperature=0.5)
+        message = result.text.strip()
+        print("✅ Morning briefing generated successfully!")
+        return message
+
+    except Exception as e:
+        print(f"⚠️ Could not generate morning report:\n{e}")
+        return "Good morning! Ready to start your day. No new updates yet — I’ll check back later!"
 
 # ================================
 # 💌 EMAIL REPLY SUGGESTION
